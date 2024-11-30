@@ -20,8 +20,9 @@ A Python-based tool for managing Battle.net authenticators. This tool allows you
 
 Easiest Method?
 Use the Release build.
+https://github.com/Nighthawk42/bnet_auth_tool/releases/
 
-- Manual Method?
+Manual Method?
 
 1. Clone the repository:
    ```bash
