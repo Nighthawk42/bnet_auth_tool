@@ -25,6 +25,7 @@ A Python-based tool for managing Battle.net authenticators. This tool allows you
 
 2. Run the script:
    ```bash
+   pip install -r requirements.txt
    py bnet_auth_tool.py`
 
 4. Follow the instructions from the console window.
