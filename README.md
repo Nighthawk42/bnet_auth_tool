@@ -26,10 +26,11 @@ Use the Release build.
 1. Clone the repository:
    ```bash
    git clone https://github.com/Nighthawk42/bnet-authenticator-tool.git
-   cd battlenet-authenticator-tool
+   cd bnet-authenticator-tool
 
 2. Run the script:
    ```bash
+   pip install -r requirements.txt
    py bnet_auth_tool.py`
 
 4. Follow the instructions from the console window.
