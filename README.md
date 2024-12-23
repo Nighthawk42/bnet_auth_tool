@@ -7,6 +7,7 @@ A Python-based tool for managing Battle.net authenticators. This tool allows you
 - Attach a new Battle.net authenticator to your account.
 - Retrieve existing device secrets using serial and restore codes.
 - Generate TOTP URLs and QR codes for use with TOTP-compatible authenticator apps.
+- Support for both US/EU accounts. - TW/CN accounts are still unknown. 
 
 ## Requirements
 
