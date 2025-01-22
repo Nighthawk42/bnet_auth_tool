@@ -4,6 +4,7 @@ import binascii
 import requests
 from pathlib import Path
 import sys
+import os
 import qrcode
 from typing import Any, Dict
 
