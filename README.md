@@ -7,7 +7,9 @@ A Python-based tool for managing Battle.net authenticators. This tool allows you
 - Attach a new Battle.net authenticator to your account.
 - Retrieve existing device secrets using serial and restore codes.
 - Generate TOTP URLs and QR codes for use with TOTP-compatible authenticator apps.
-- Support for both US/EU accounts. - TW/CN accounts are still unknown. 
+- Regenerate TOTP URLs and QR codes if needed.
+- Support for both US/EU accounts. - TW/CN accounts are still unknown.
+
 
 ## Requirements
 
@@ -27,8 +29,8 @@ Manual Method?
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/Nighthawk42/bnet-authenticator-tool.git
-   cd bnet-authenticator-tool
+   git clone https://github.com/Nighthawk42/bnet_auth_tool.git
+   cd bnet_auth_tool
 
 2. Run the script:
    ```bash
