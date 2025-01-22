@@ -32,12 +32,18 @@ print(r"""
 
 print("Battle.net Authenticator Tool - by Nighthawk42 - Version 1.1 (01/21/2025)")
 
+class Title:
+    """Console/Window Title."""
+    if sys.platform == "win32":
+        os.system('title Battle.net Authenticator Tool')
+    else:
+        sys.stdout.write("\x1b]2;Battle.net Authenticator Tool\x07")
+
 class Config:
     """Configuration for Battle.net Authenticator API."""
     BASE_URL = "https://authenticator-rest-api.bnet-identity.blizzard.net/v1/authenticator"
     SSO_URL = "https://oauth.battle.net/oauth/sso"
     CLIENT_ID = "baedda12fe054e4abdfc3ad7bdea970a"
-
 
 class BattleNetAuthenticator:
     """
