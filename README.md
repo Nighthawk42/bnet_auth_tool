@@ -15,6 +15,7 @@ A Python-based tool for managing Battle.net authenticators. This tool allows you
 
 - Python 3.7+
 - Required libraries:
+  - `cryptography` 
   - `requests`
   - `pillow`
   - `qrcode`
