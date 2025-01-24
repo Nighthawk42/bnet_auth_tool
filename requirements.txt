@@ -1,3 +1,4 @@
-requests
-pillow
+cryptography
 qrcode
+Pillow
+requests
