@@ -1,29 +1,16 @@
 # -*- coding: utf-8 -*-
+"""
+Battle.net Authenticator Tool
+Version: 1.3.0
+Author: Nighthawk42
+License: MIT
+Github: https://github.com/Nighthawk42/bnet_auth_tool
 
-print(r"""
- ____          _    _    _                        _
-| __ )   __ _ | |_ | |_ | |  ___     _ __    ___ | |_
-|  _ \  / _` || __|| __|| | / _ \   | '_ \  / _ \| __|
-| |_) || (_| || |_ | |_ | ||  __/ _ | | | ||  __/| |_
-|____/  \__,_| \__| \__||_| \___|(_)|_| |_| \___| \__|
-
-
-    _            _    _                   _    _               _
-   / \    _   _ | |_ | |__    ___  _ __  | |_ (_)  ___   __ _ | |_   ___   _ __
-  / _ \  | | | || __|| '_ \  / _ \| '_ \ | __|| | / __| / _` || __| / _ \ | '__|
- / ___ \ | |_| || |_ | | | ||  __/| | | || |_ | || (__ | (_| || |_ | (_) || |
-/_/   \_\ \__,_| \__||_| |_| \___||_| |_| \__||_| \___| \__,_| \__| \___/ |_|
-
-
- _____                _
-|_   _|  ___    ___  | |
-  | |   / _ \  / _ \ | |
-  | |  | (_) || (_) || |
-  |_|   \___/  \___/ |_|
-
-""")
-
-print("Battle.net Authenticator Tool\nVersion 1.3.0 (04/01/2025)\nAuthor: Nighthawk42\nLicense: MIT\nGithub:https://github.com/Nighthawk42/bnet_auth_tool")
+Allows attaching a new Battle.net software authenticator or retrieving
+details of an existing one to generate TOTP codes compatible with standard
+authenticator apps. Supports optional encryption of saved authenticator details.
+Ensures backward compatibility for decrypting files from previous versions.
+"""
 
 # --- Standard Library Imports ---
 import json
@@ -58,6 +45,10 @@ if platform.system() == "Windows":
 # --- Constants ---
 APP_TITLE = "Battle.net Authenticator Tool"
 APP_VERSION = "1.3.0"
+APP_AUTHOR = "Nighthawk42"
+APP_LICENSE = "MIT"
+APP_GITHUB_URL = "https://github.com/Nighthawk42/bnet_auth_tool"
+# ASCII Art moved to print_header function
 LEGACY_PBKDF2_ITERATIONS = 100_000 # Iteration count used in versions prior to 1.3
 DEFAULT_PBKDF2_ITERATIONS = 600_000  # Increased iterations for stronger key derivation (OWASP recommendation as of late 2023)
 SALT_SIZE = 16  # Bytes for PBKDF2 salt
@@ -99,8 +90,36 @@ def graceful_exit(exit_code: int = 0) -> None:
     sys.exit(exit_code)
 
 def print_header() -> None:
-    """Prints the application header."""
-    print(f"{APP_TITLE}\nVersion {APP_VERSION}\nAuthor: Nighthawk42\nLicense: MIT")
+    """Prints the application header, including ASCII art and metadata."""
+    # ASCII Art Logo
+    print(r"""
+ ____          _    _    _                        _
+| __ )   __ _ | |_ | |_ | |  ___     _ __    ___ | |_
+|  _ \  / _` || __|| __|| | / _ \   | '_ \  / _ \| __|
+| |_) || (_| || |_ | |_ | ||  __/ _ | | | ||  __/| |_
+|____/  \__,_| \__| \__||_| \___|(_)|_| |_| \___| \__|
+
+
+    _            _    _                   _    _               _
+   / \    _   _ | |_ | |__    ___  _ __  | |_ (_)  ___   __ _ | |_   ___   _ __
+  / _ \  | | | || __|| '_ \  / _ \| '_ \ | __|| | / __| / _` || __| / _ \ | '__|
+ / ___ \ | |_| || |_ | | | ||  __/| | | || |_ | || (__ | (_| || |_ | (_) || |
+/_/   \_\ \__,_| \__||_| |_| \___||_| |_| \__||_| \___| \__,_| \__| \___/ |_|
+
+
+ _____                _
+|_   _|  ___    ___  | |
+  | |   / _ \  / _ \ | |
+  | |  | (_) || (_) || |
+  |_|   \___/  \___/ |_|
+
+    """)
+    # Metadata using constants
+    print(f"{APP_TITLE}")
+    print(f"Version: {APP_VERSION}")
+    print(f"Author: {APP_AUTHOR}")
+    print(f"License: {APP_LICENSE}")
+    print(f"Github: {APP_GITHUB_URL}")
     print("-" * 40)
 
 
@@ -136,6 +155,7 @@ class EncryptionManager:
             raise ValueError("Passphrase cannot be empty.")
         self.passphrase = passphrase.encode('utf-8')
         self.backend = default_backend()
+        # Default iterations for NEW encryptions
         self.default_iterations = DEFAULT_PBKDF2_ITERATIONS
 
     def _derive_key(self, salt: bytes, iterations: int) -> bytes:
@@ -150,7 +170,7 @@ class EncryptionManager:
             algorithm=hashes.SHA256(),
             length=AES_KEY_SIZE,
             salt=salt,
-            iterations=iterations,
+            iterations=iterations, # Use the provided iteration count
             backend=self.backend
         )
         return kdf.derive(self.passphrase)
@@ -172,6 +192,7 @@ class EncryptionManager:
             json_data_bytes = json.dumps(data, ensure_ascii=False).encode('utf-8')
 
             salt = os.urandom(SALT_SIZE)
+            # Use the default (high) iteration count for new encryptions
             key = self._derive_key(salt, self.default_iterations)
             aesgcm = AESGCM(key)
             nonce = os.urandom(NONCE_SIZE)
@@ -253,7 +274,7 @@ class BattleNetAuthenticator:
         """Initializes the authenticator handler."""
         self.bearer_token: Optional[str] = None
         self.session = requests.Session() # Use a session for potential connection reuse
-        # Add a user-agent for politeness
+        # Add a user-agent for politeness using constants
         self.session.headers.update({'User-Agent': f'{APP_TITLE}/{APP_VERSION}'})
 
     def _make_request(self, method: str, url: str, headers: Optional[Dict] = None,
@@ -1051,6 +1072,7 @@ def _handle_decrypt_file_action(authenticator: BattleNetAuthenticator) -> None:
 def interactive_cli() -> None:
     """Runs the main interactive command-line interface."""
     set_console_title()
+    # Print the consolidated header ONCE at the start
     print_header()
 
     # Create a single authenticator instance for the session
