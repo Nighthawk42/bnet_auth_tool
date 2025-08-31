@@ -1,5 +1,17 @@
 # Battle.net Authenticator Tool
 
+# Update: 31/08/2025
+
+For the moment due to ongoing changes to the Battle.net API the prebuilt binaries will not work, nor where the Python script.
+
+Instead, try using the `dev` branch Python script for the time being.
+
+https://github.com/Nighthawk42/bnet_auth_tool/blob/dev/bnet_auth_tool.py
+
+After a few weeks of testing, I will update the `main` branch and release a `1.4.0` binary for those who prefer not to run the Python script directly.
+
+---
+
 Version: 1.3.0
 
 A Python-based command-line tool for managing Battle.net software authenticators. This tool allows you to:
