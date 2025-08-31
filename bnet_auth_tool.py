@@ -1,3 +1,12 @@
+# -*- coding: utf-8 -*-
+"""
+Battle.net Authenticator Tool
+Version: 1.4.0
+Author: Nighthawk42
+License: MIT
+Github: https://github.com/Nighthawk42/bnet_auth_tool
+"""
+
 import json
 import base64
 import binascii
@@ -19,581 +28,666 @@ try:
     from cryptography.exceptions import InvalidTag
 except ImportError as e:
     print(f"Error: Missing required library. {e}")
-    print("Please install dependencies using: pip install requests qrcode[pil] cryptography")
+    print("Install: pip install requests qrcode[pil] cryptography")
     sys.exit(1)
 
 if platform.system() == "Windows":
     import ctypes
 
-class AppConfig:
+
+class AppInfo:
     TITLE = "Battle.net Authenticator Tool"
-    VERSION = "1.3.1"
+    VERSION = "1.4.0"
     AUTHOR = "Nighthawk42"
     LICENSE = "MIT"
-    GITHUB_URL = "https://github.com/Nighthawk42/bnet_auth_tool"
-    
-    BASE_URL = "https://authenticator-rest-api.bnet-identity.blizzard.net/v1/authenticator"
-    SSO_URL = "https://oauth.battle.net/oauth/sso"
-    CLIENT_ID = "baedda12fe054e4abdfc3ad7bdea970a"
+    GITHUB = "https://github.com/Nighthawk42/bnet_auth_tool"
 
+
+class Security:
     LEGACY_PBKDF2_ITERATIONS = 100_000
     DEFAULT_PBKDF2_ITERATIONS = 600_000
     SALT_SIZE = 16
     NONCE_SIZE = 12
     AES_KEY_SIZE = 32
 
+
+class Endpoints:
+    CLIENT_ID = "baedda12fe054e4abdfc3ad7bdea970a"
+    SSO_URLS = [
+        "https://oauth.battle.net/oauth/sso",
+        "https://us.oauth.battle.net/oauth/sso",
+        "https://eu.oauth.battle.net/oauth/sso",
+    ]
+    API_URLS = [
+        "https://authenticator-rest-api.bnet-identity.blizzard.net/v1/authenticator",
+        "https://us.authenticator-rest-api.bnet-identity.blizzard.net/v1/authenticator",
+        "https://eu.authenticator-rest-api.bnet-identity.blizzard.net/v1/authenticator",
+    ]
+
+
+class CookieHints:
+    CANDIDATE_KEYS = [
+        "BA-tassadar",            # preferred
+        "BA-tassadar-cl",
+        "BA-tassadar-loginKey",
+        "login.key",
+        "cl",
+        "SESSIONID",
+    ]
+
+
 class AuthenticatorError(Exception):
     pass
+
 
 class EncryptionError(Exception):
     pass
 
+
 class DecryptionError(Exception):
     pass
 
-def set_console_title(title: str = AppConfig.TITLE) -> None:
+
+def set_console_title(title: str = AppInfo.TITLE) -> None:
     try:
         if platform.system() == "Windows":
             ctypes.windll.kernel32.SetConsoleTitleW(title)
         else:
             sys.stdout.write(f"\x1b]2;{title}\x07")
             sys.stdout.flush()
-    except Exception as e:
-        print(f"Warning: Could not set console title - {e}", file=sys.stderr)
+    except Exception:
+        pass
 
-def graceful_exit(exit_code: int = 0) -> None:
-    print("\nExiting the program. Ensure you have securely backed up your data.")
-    sys.exit(exit_code)
+
+def graceful_exit(code: int = 0) -> None:
+    print("\nExiting. Back up your data.")
+    sys.exit(code)
+
 
 def print_header() -> None:
-    print(r"""
- ____          _    _    _                        _
-| __ )   __ _ | |_ | |_ | |  ___     _ __    ___ | |_
-|  _ \  / _` || __|| __|| | / _ \   | '_ \  / _ \| __|
-| |_) || (_| || |_ | |_ | ||  __/ _ | | | ||  __/| |_
-|____/  \__,_| \__| \__||_| \___|(_)|_| |_| \___| \__|
-
-
-    _            _    _                   _    _               _
-   / \    _   _ | |_ | |__    ___  _ __  | |_ (_)  ___   __ _ | |_   ___   _ __
-  / _ \  | | | || __|| '_ \  / _ \| '_ \ | __|| | / __| / _` || __| / _ \ | '__|
- / ___ \ | |_| || |_ | | | ||  __/| | | || |_ | || (__ | (_| || |_ | (_) || |
-/_/   \_\ \__,_| \__||_| |_| \___||_| |_| \__||_| \___| \__,_| \__| \___/ |_|
-
-
- _____                _
-|_   _|  ___    ___  | |
-  | |   / _ \  / _ \ | |
-  | |  | (_) || (_) || |
-  |_|   \___/  \___/ |_|
-
-    """)
-    print(f"{AppConfig.TITLE}")
-    print(f"Version: {AppConfig.VERSION}")
-    print(f"Author: {AppConfig.AUTHOR}")
-    print(f"License: {AppConfig.LICENSE}")
-    print(f"Github: {AppConfig.GITHUB_URL}")
+    print(f"{AppInfo.TITLE}")
+    print(f"Version: {AppInfo.VERSION}")
+    print(f"Author: {AppInfo.AUTHOR}")
+    print(f"License: {AppInfo.LICENSE}")
+    print(f"GitHub Repo: {AppInfo.GITHUB}")
     print("-" * 40)
+
 
 class EncryptionManager:
     def __init__(self, passphrase: str):
         if not passphrase:
             raise ValueError("Passphrase cannot be empty.")
-        self.passphrase = passphrase.encode('utf-8')
+        self.passphrase = passphrase.encode("utf-8")
         self.backend = default_backend()
-        self.default_iterations = AppConfig.DEFAULT_PBKDF2_ITERATIONS
+        self.default_iterations = Security.DEFAULT_PBKDF2_ITERATIONS
 
     def _derive_key(self, salt: bytes, iterations: int) -> bytes:
         kdf = PBKDF2HMAC(
             algorithm=hashes.SHA256(),
-            length=AppConfig.AES_KEY_SIZE,
+            length=Security.AES_KEY_SIZE,
             salt=salt,
             iterations=iterations,
-            backend=self.backend
+            backend=self.backend,
         )
         return kdf.derive(self.passphrase)
 
     def encrypt(self, data: Dict[str, Any]) -> bytes:
         try:
-            json_data_bytes = json.dumps(data, ensure_ascii=False).encode('utf-8')
-            salt = os.urandom(AppConfig.SALT_SIZE)
+            b = json.dumps(data, ensure_ascii=False).encode("utf-8")
+            salt = os.urandom(Security.SALT_SIZE)
             key = self._derive_key(salt, self.default_iterations)
-            aesgcm = AESGCM(key)
-            nonce = os.urandom(AppConfig.NONCE_SIZE)
-            ciphertext = aesgcm.encrypt(nonce, json_data_bytes, None)
-
-            encrypted_package = {
-                'salt': base64.b64encode(salt).decode('utf-8'),
-                'nonce': base64.b64encode(nonce).decode('utf-8'),
-                'ciphertext': base64.b64encode(ciphertext).decode('utf-8'),
-                'kdf_iterations': self.default_iterations
+            nonce = os.urandom(Security.NONCE_SIZE)
+            ct = AESGCM(key).encrypt(nonce, b, None)
+            pkg = {
+                "salt": base64.b64encode(salt).decode("utf-8"),
+                "nonce": base64.b64encode(nonce).decode("utf-8"),
+                "ciphertext": base64.b64encode(ct).decode("utf-8"),
+                "kdf_iterations": self.default_iterations,
             }
-            return json.dumps(encrypted_package, indent=4).encode('utf-8')
+            return json.dumps(pkg, indent=4).encode("utf-8")
         except Exception as e:
             raise EncryptionError(f"Encryption failed: {e}") from e
 
     def decrypt(self, encrypted_bytes: bytes) -> Dict[str, Any]:
-        missing_iterations_field = False
+        missing = False
         try:
-            encrypted_data = json.loads(encrypted_bytes.decode('utf-8'))
-            salt = base64.b64decode(encrypted_data['salt'])
-            nonce = base64.b64decode(encrypted_data['nonce'])
-            ciphertext = base64.b64decode(encrypted_data['ciphertext'])
-
-            if 'kdf_iterations' in encrypted_data:
-                stored_iterations = int(encrypted_data['kdf_iterations'])
+            obj = json.loads(encrypted_bytes.decode("utf-8"))
+            salt = base64.b64decode(obj["salt"])
+            nonce = base64.b64decode(obj["nonce"])
+            ct = base64.b64decode(obj["ciphertext"])
+            if "kdf_iterations" in obj:
+                iters = int(obj["kdf_iterations"])
             else:
-                missing_iterations_field = True
-                stored_iterations = AppConfig.LEGACY_PBKDF2_ITERATIONS
-                print(f"Warning: 'kdf_iterations' field missing. Assuming legacy count ({AppConfig.LEGACY_PBKDF2_ITERATIONS}). Re-encrypt for better security.")
-
-            key = self._derive_key(salt, stored_iterations)
-            aesgcm = AESGCM(key)
-            decrypted_data_bytes = aesgcm.decrypt(nonce, ciphertext, None)
-            return json.loads(decrypted_data_bytes.decode('utf-8'))
-        except InvalidTag:
-            raise DecryptionError("Decryption failed: Authentication tag mismatch. Check passphrase or data integrity.")
+                missing = True
+                iters = Security.LEGACY_PBKDF2_ITERATIONS
+                print(f"Warning: 'kdf_iterations' missing. Using legacy {iters}.")
+            key = self._derive_key(salt, iters)
+            pt = AESGCM(key).decrypt(nonce, ct, None)
+            return json.loads(pt.decode("utf-8"))
         except (KeyError, ValueError, TypeError, binascii.Error, json.JSONDecodeError) as e:
-            extra_info = " (Note: Assumed legacy KDF iterations as field was missing)." if missing_iterations_field else ""
-            raise DecryptionError(f"Decryption failed: Invalid data format or content. {e}{extra_info}") from e
+            extra = " (legacy iterations assumed)" if missing else ""
+            raise DecryptionError(f"Decryption failed: Invalid data. {e}{extra}") from e
+        except InvalidTag:
+            raise DecryptionError("Decryption failed: Auth tag mismatch.")
         except Exception as e:
-            raise DecryptionError(f"An unexpected error occurred during decryption: {e}") from e
+            raise DecryptionError(f"Unexpected decryption error: {e}") from e
+
 
 class BattleNetAuthenticator:
     def __init__(self):
         self.bearer_token: Optional[str] = None
         self.session = requests.Session()
-        self.session.headers.update({'User-Agent': f'{AppConfig.TITLE}/{AppConfig.VERSION}'})
+        self.session.headers.update({"User-Agent": f"{AppInfo.TITLE}/{AppInfo.VERSION}"})
+
+    @staticmethod
+    def _join(base: str, path: Optional[str]) -> str:
+        if not path:
+            return base
+        return f"{base.rstrip('/')}/{path.lstrip('/')}"
 
     def _make_request(self, method: str, url: str, headers: Optional[Dict] = None,
                       data: Optional[Any] = None, json_payload: Optional[Dict] = None) -> Dict[str, Any]:
         try:
-            request_headers = self.session.headers.copy()
+            h = self.session.headers.copy()
             if headers:
-                request_headers.update(headers)
-
-            response = self.session.request(method, url, headers=request_headers, data=data, json=json_payload, timeout=20)
-            response.raise_for_status()
-
-            if response.status_code == 204:
+                h.update(headers)
+            resp = self.session.request(method, url, headers=h, data=data, json=json_payload, timeout=20)
+            resp.raise_for_status()
+            if resp.status_code == 204:
                 return {}
-            
-            content_type = response.headers.get('Content-Type', '')
-            if 'application/json' in content_type:
-                return response.json()
-            else:
-                raise AuthenticatorError(f"Unexpected content type '{content_type}' received from {url}.")
-
+            if "application/json" in resp.headers.get("Content-Type", ""):
+                return resp.json()
+            raise AuthenticatorError(f"Unexpected content type from {url}")
+        except requests.exceptions.Timeout as e:
+            raise AuthenticatorError(f"Timeout {url}: {e}") from e
+        except requests.exceptions.ConnectionError as e:
+            raise AuthenticatorError(f"Network error {url}: {e}") from e
         except requests.exceptions.HTTPError as e:
-            error_details = f" Server Response: {e.response.text[:500]}"
-            raise AuthenticatorError(f"HTTP error {e.response.status_code} from {url}.{error_details}") from e
+            try:
+                body = resp.json()
+                detail = f" Server: {json.dumps(body)}"
+            except Exception:
+                detail = f" Server: {resp.text[:500]}..."
+            raise AuthenticatorError(f"HTTP {resp.status_code} {url}: {e}.{detail}") from e
         except requests.exceptions.RequestException as e:
-            raise AuthenticatorError(f"Request failed for {url}: {e}") from e
+            raise AuthenticatorError(f"Request failed {url}: {e}") from e
         except json.JSONDecodeError as e:
-            raise AuthenticatorError(f"Failed to decode JSON response from {url}: {e}") from e
+            raise AuthenticatorError(f"JSON decode error {url}: {e}") from e
 
-    def get_bearer_token(self, session_token: str) -> None:
+    def _with_fallback(self, method: str, bases: List[str], path: Optional[str] = None,
+                       headers: Optional[Dict] = None, data: Optional[Any] = None,
+                       json_payload: Optional[Dict] = None) -> Dict[str, Any]:
+        last = None
+        for base in bases:
+            url = self._join(base, path)
+            try:
+                return self._make_request(method, url, headers=headers, data=data, json_payload=json_payload)
+            except AuthenticatorError as e:
+                print(f"Warning: {e}")
+                last = e
+        if last:
+            raise last
+        raise AuthenticatorError("No URLs to try.")
+
+    def get_bearer_token(self, token_value: str) -> None:
         payload = {
-            "client_id": AppConfig.CLIENT_ID,
+            "client_id": Endpoints.CLIENT_ID,
             "grant_type": "client_sso",
             "scope": "auth.authenticator",
-            "token": session_token,
+            "token": token_value,
         }
         headers = {"content-type": "application/x-www-form-urlencoded; charset=utf-8"}
-        
-        print("Requesting Bearer Token...")
-        response_data = self._make_request("POST", AppConfig.SSO_URL, headers=headers, data=payload)
-
-        access_token = response_data.get("access_token")
-        if not access_token:
-            raise AuthenticatorError("Bearer token not found in SSO response.")
-
-        self.session.headers['Authorization'] = f"Bearer {access_token}"
-        self.bearer_token = access_token
-        print("Bearer Token obtained successfully.")
+        print("Requesting Bearer Token (SSO fallback)...")
+        data = self._with_fallback("POST", Endpoints.SSO_URLS, headers=headers, data=payload)
+        access = data.get("access_token")
+        if not access:
+            raise AuthenticatorError("Missing 'access_token' in SSO response.")
+        self.session.headers["Authorization"] = f"Bearer {access}"
+        self.bearer_token = access
+        print("Bearer Token obtained.")
 
     def attach_authenticator(self) -> Dict[str, Any]:
-        if 'Authorization' not in self.session.headers:
-            raise AuthenticatorError("Bearer token not set. Call get_bearer_token first.")
-        
-        print("Attempting to attach a new authenticator...")
-        response_data = self._make_request("POST", AppConfig.BASE_URL, headers={"accept": "application/json"})
-
-        if not all(key in response_data for key in ["serial", "restoreCode", "deviceSecret"]):
-            raise AuthenticatorError(f"API response missing expected keys. Got: {response_data.keys()}")
-
-        print("Authenticator attached successfully.")
-        return response_data
+        if "Authorization" not in self.session.headers:
+            raise AuthenticatorError("Bearer token not set.")
+        print("Attaching authenticator (API fallback)...")
+        data = self._with_fallback("POST", Endpoints.API_URLS, headers={"accept": "application/json"})
+        for k in ("serial", "restoreCode", "deviceSecret"):
+            if k not in data:
+                raise AuthenticatorError(f"API response missing '{k}'.")
+        print("Authenticator attached.")
+        return data
 
     def retrieve_device_secret(self, serial: str, restore_code: str) -> Dict[str, Any]:
-        if 'Authorization' not in self.session.headers:
-            raise AuthenticatorError("Bearer token not set. Call get_bearer_token first.")
-        
-        payload = {"serial": serial, "restoreCode": restore_code}
-        url = f"{AppConfig.BASE_URL}/device"
-
-        print(f"Attempting to retrieve secret for serial {serial}...")
-        response_data = self._make_request("POST", url, json_payload=payload)
-
-        if "deviceSecret" not in response_data:
-            raise AuthenticatorError(f"API response missing 'deviceSecret'. Got: {response_data.keys()}")
-
-        print("Device secret retrieved successfully.")
-        return response_data
+        if "Authorization" not in self.session.headers:
+            raise AuthenticatorError("Bearer token not set.")
+        print(f"Retrieving device secret for {serial} (API fallback)...")
+        data = self._with_fallback(
+            "POST",
+            Endpoints.API_URLS,
+            path="device",
+            headers={"accept": "application/json", "Content-Type": "application/json"},
+            json_payload={"serial": serial, "restoreCode": restore_code},
+        )
+        if "deviceSecret" not in data:
+            raise AuthenticatorError("API response missing 'deviceSecret'.")
+        print("Device secret retrieved.")
+        return data
 
     @staticmethod
-    def save_json(filename: str, data: Dict[str, Any], encryption_manager: Optional[EncryptionManager] = None) -> None:
-        file_path = Path(filename)
-        if file_path.exists():
+    def save_json(filename: str, data: Dict[str, Any], enc: Optional[EncryptionManager] = None) -> None:
+        p = Path(filename)
+        if p.exists():
             while True:
                 try:
-                    overwrite = input(f"'{filename}' already exists. Overwrite? (y/n): ").strip().lower()
-                    if overwrite == "y": break
-                    if overwrite == "n": print("Data not saved."); return
-                    print("Invalid input.")
+                    o = input(f"'{filename}' exists. Overwrite? (y/n): ").strip().lower()
                 except EOFError:
-                    print("\nOperation cancelled."); return
-
+                    print("\nCancelled.")
+                    return
+                if o == "y":
+                    break
+                if o == "n":
+                    print("Not saved.")
+                    return
+                print("Enter 'y' or 'n'.")
         try:
-            if encryption_manager:
-                encrypted_data = encryption_manager.encrypt(data)
-                file_path.write_bytes(encrypted_data)
-                print(f"Encrypted data saved to '{filename}'.")
+            if enc:
+                payload = enc.encrypt(data)
+                with open(p, "wb") as f:
+                    f.write(payload)
+                print(f"Encrypted file saved: {filename}")
             else:
-                file_path.write_text(json.dumps(data, indent=4, ensure_ascii=False), encoding='utf-8')
-                print(f"Data successfully saved to '{filename}'.")
-            print("IMPORTANT: Securely back up this file and your passphrase if encrypted!")
+                with open(p, "w", encoding="utf-8") as f:
+                    json.dump(data, f, indent=4, ensure_ascii=False)
+                print(f"File saved: {filename}")
+            print("Backup this file and remember your passphrase if encrypted.")
         except IOError as e:
-            raise IOError(f"Failed to write to '{filename}': {e}") from e
+            raise IOError(f"Write failed '{filename}': {e}") from e
 
     @staticmethod
-    def load_json(filename: str, encryption_manager: Optional[EncryptionManager] = None) -> Dict[str, Any]:
-        file_path = Path(filename)
-        if not file_path.is_file():
-            raise FileNotFoundError(f"File not found: '{filename}'")
-
+    def load_json(filename: str, enc: Optional[EncryptionManager] = None) -> Dict[str, Any]:
+        p = Path(filename)
+        if not p.is_file():
+            raise FileNotFoundError(f"Not found: '{filename}'")
         try:
-            if encryption_manager:
-                encrypted_bytes = file_path.read_bytes()
-                data = encryption_manager.decrypt(encrypted_bytes)
-                print(f"Decrypted data loaded from '{filename}'.")
+            if enc:
+                with open(p, "rb") as f:
+                    b = f.read()
+                data = enc.decrypt(b)
+                print(f"Decrypted: {filename}")
                 return data
             else:
-                data = json.loads(file_path.read_text(encoding='utf-8'))
-                print(f"Data loaded from '{filename}'.")
+                with open(p, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                print(f"Loaded: {filename}")
                 return data
         except IOError as e:
-            raise IOError(f"Failed to read from '{filename}': {e}") from e
+            raise IOError(f"Read failed '{filename}': {e}") from e
 
     @staticmethod
     def convert_secret_to_base32(hex_secret: str) -> str:
         try:
-            secret_bytes = binascii.unhexlify(hex_secret)
-            return base64.b32encode(secret_bytes).decode("utf-8").rstrip("=")
+            if len(hex_secret) % 2 != 0:
+                raise binascii.Error("Odd-length hex")
+            b = binascii.unhexlify(hex_secret)
+            return base64.b32encode(b).decode("utf-8").rstrip("=")
         except (binascii.Error, TypeError) as e:
-            raise ValueError(f"Failed to convert secret to Base32: Invalid hex input. ({e})") from e
+            raise ValueError(f"Invalid hex secret: {e}") from e
 
     @staticmethod
     def generate_qr_code(totp_url: str, filename_base: str) -> None:
-        filename = f"{filename_base}.png"
+        name = f"{filename_base}.png"
         try:
-            print(f"Generating QR code '{filename}'...")
+            print(f"Generating QR: {name}")
             qr = qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_L, box_size=10, border=4)
             qr.add_data(totp_url)
             qr.make(fit=True)
-            img = qr.make_image(fill_color='black', back_color='white')
-            img.save(filename)
-            print(f"QR code saved successfully as '{filename}'.")
+            img = qr.make_image(fill_color="black", back_color="white")
+            img.save(name)
+            print(f"QR saved: {name}")
         except IOError as e:
-            raise IOError(f"Failed to save QR code image to '{filename}': {e}") from e
+            raise IOError(f"QR save failed '{name}': {e}") from e
         except Exception as e:
-            raise Exception(f"Error generating QR code image: {e}") from e
+            raise Exception(f"QR generation error: {e}") from e
 
-def _prompt_for_encryption() -> bool:
-    print("\nEncryption adds a layer of security. You MUST remember your passphrase.")
-    while True:
+
+class CLI:
+    def __init__(self):
+        self.auth = BattleNetAuthenticator()
+
+    @staticmethod
+    def show_cookie_instructions() -> None:
+        print("\nHow to get your cookie token (localhost flow):")
+        print("1) Open an browser window.")
+        print("2) Go to: https://account.battle.net/login/en/?ref=localhost and log in.")
+        print("3) You will land on a localhost error page—this is expected.")
+        print("4) You *might* be redirected, if so return to https://account.battle.net/login/en/?ref=localhost")
+        print("Follow the proper directions for whichever browser you are using.")
+        print("\nChromium (Chrome / Edge / Brave):")
+        print("  - F12 → Application → Storage → Cookies → select the current site")
+        print("  - Copy the cookie value from one of:", ", ".join(CookieHints.CANDIDATE_KEYS))
+        print("  - Or Console: document.cookie")
+        print("\nFirefox:")
+        print("  - F12 → Storage → Cookies → select the site")
+        print("  - Copy the cookie value from one of the keys above")
+        print("  - Or Console: document.cookie")
+        print("\nSafari (macOS):")
+        print("  - Safari → Settings… → Advanced → enable ‘Show Develop menu’")
+        print("  - Develop → Show Web Inspector → Storage → Cookies (or Console: document.cookie)")
+        print("\nPaste EXACTLY the value of the cookie (no quotes).")
+        print("-" * 40)
+
+    @staticmethod
+    def prompt_token() -> Optional[str]:
+        CLI.show_cookie_instructions()
         try:
-            choice = input("Encrypt the saved JSON file? (y/n): ").strip().lower()
-            if choice in ['y', 'n']: return choice == 'y'
-            print("Invalid input.")
+            tok = input("Paste ONE cookie token value (or 'exit' to cancel): ").strip()
+            if tok.lower() in ("exit", "q"):
+                return None
+            if not tok:
+                print("Token cannot be empty.")
+                return None
+            return tok
         except (EOFError, KeyboardInterrupt):
-            print("\nOperation cancelled.")
-            return False
+            print("\nCancelled.")
+            return None
 
-def _prompt_for_passphrase(prompt_message: str = "Enter encryption passphrase: ") -> Optional[EncryptionManager]:
-    while True:
-        try:
-            passphrase = getpass.getpass(prompt_message)
-            if not passphrase:
-                print("Passphrase cannot be empty.")
-                continue
-            if passphrase == getpass.getpass("Confirm passphrase: "):
-                return EncryptionManager(passphrase)
-            else:
+    @staticmethod
+    def prompt_encrypt() -> bool:
+        print("\nOptional: encrypt saved JSON.")
+        while True:
+            try:
+                c = input("Encrypt output file? (y/n): ").strip().lower()
+                if c in ("y", "n"):
+                    return c == "y"
+                print("Enter 'y' or 'n'.")
+            except (EOFError, KeyboardInterrupt):
+                print("\nCancelled.")
+                return False
+
+    @staticmethod
+    def prompt_passphrase(msg: str) -> Optional[EncryptionManager]:
+        while True:
+            try:
+                pw = getpass.getpass(msg)
+                if not pw:
+                    print("Passphrase cannot be empty.")
+                    continue
+                pw2 = getpass.getpass("Confirm passphrase: ")
+                if pw == pw2:
+                    return EncryptionManager(pw)
                 print("Passphrases do not match.")
-        except (EOFError, KeyboardInterrupt):
-            print("\nOperation cancelled.")
-            return None
+            except (EOFError, KeyboardInterrupt):
+                print("\nCancelled.")
+                return None
 
-def _get_session_token() -> Optional[str]:
-    print("\n--- How to Get the Session Token ---")
-    print("1. In a private browser window, navigate to: https://account.battle.net/login/en/?ref=localhost")
-    print("2. Log in. You will land on an expected 'Page Not Found' on 'localhost'.")
-    print("3. From the URL, copy the token value that looks like `ST=XX-...` (e.g., 'US-abc...').")
-    print("-" * 36)
-    try:
-        session_token = input("Enter your Session Token (or 'exit'): ").strip()
-        if session_token.lower() == "exit": return None
-        if not session_token:
-            print("Error: Session Token cannot be empty.")
-            return None
-        if not any(session_token.startswith(p) for p in ["US-", "EU-", "KR-", "TW-", "CN-"]) or len(session_token) < 20:
-             print("Warning: Token format looks unusual. Ensure you copied the full value.")
-        return session_token
-    except (EOFError, KeyboardInterrupt):
-        print("\nOperation cancelled.")
-        return None
+    def process_and_save(self, device_info: Dict[str, Any], enc: Optional[EncryptionManager]) -> None:
+        serial = device_info.get("serial")
+        restore = device_info.get("restoreCode")
+        secret_hex = device_info.get("deviceSecret")
+        if not all([serial, restore, secret_hex]):
+            raise ValueError("Incomplete device info.")
 
-def _process_and_save_results(authenticator: BattleNetAuthenticator, device_info: Dict[str, Any], encryption_manager: Optional[EncryptionManager]) -> None:
-    serial = device_info.get("serial")
-    restore_code = device_info.get("restoreCode")
-    device_secret = device_info.get("deviceSecret")
+        print("-" * 30)
+        print("Authenticator:")
+        print(f"  Serial: {serial}")
+        print(f"  Restore Code: {restore}")
+        print("-" * 30)
 
-    if not all([serial, restore_code, device_secret]):
-        raise ValueError("Incomplete device information from API.")
-
-    print("\n" + "-" * 30)
-    print("Authenticator Details:")
-    print(f"  Serial: {serial}")
-    print(f"  Restore Code: {restore_code}")
-    print("-" * 30)
-
-    print("Generating TOTP Information...")
-    base32_secret = authenticator.convert_secret_to_base32(device_secret)
-    label = f"Battle.net:{serial}"
-    totp_url = f"otpauth://totp/{label}?secret={base32_secret}&issuer=Battle.net&digits=8&algorithm=SHA1&period=30"
-
-    print("\n--- TOTP Key Details ---")
-    print(f"Base32 Secret: {base32_secret}")
-    print(f"TOTP URL: {totp_url}")
-    print("\nApp Settings: Type=TOTP, Algorithm=SHA1, Digits=8, Period=30s")
-    print("-" * 24)
-
-    data_to_save = {
-        "serial": serial,
-        "restoreCode": restore_code,
-        "deviceSecret": device_secret,
-        "base32Secret": base32_secret,
-        "totpUrl": totp_url,
-        "timestamp": datetime.now(timezone.utc).isoformat(timespec='seconds')
-    }
-
-    filename_base = f"battlenet_authenticator_{serial}"
-    json_filename = f"{filename_base}.json"
-
-    authenticator.save_json(json_filename, data_to_save, encryption_manager)
-    authenticator.generate_qr_code(totp_url, filename_base)
-
-def _handle_attach_action(authenticator: BattleNetAuthenticator) -> None:
-    session_token = _get_session_token()
-    if not session_token: return
-
-    encryption_manager = _prompt_for_passphrase("Enter passphrase to encrypt new file: ") if _prompt_for_encryption() else None
-    if _prompt_for_encryption() and not encryption_manager: return
-
-    try:
-        authenticator.get_bearer_token(session_token)
-        device_info = authenticator.attach_authenticator()
-        _process_and_save_results(authenticator, device_info, encryption_manager)
-    except (AuthenticatorError, EncryptionError, IOError, ValueError, Exception) as e:
-        print(f"\nError during attach process: {e}", file=sys.stderr)
-
-def _handle_retrieve_action(authenticator: BattleNetAuthenticator) -> None:
-    session_token = _get_session_token()
-    if not session_token: return
-
-    encryption_manager = _prompt_for_passphrase("Enter passphrase to encrypt retrieved file: ") if _prompt_for_encryption() else None
-    if _prompt_for_encryption() and not encryption_manager: return
-
-    try:
-        serial = input("Enter the Authenticator Serial number: ").strip()
-        restore_code = input("Enter the Authenticator Restore Code: ").strip()
-        if not serial or not restore_code:
-            print("Error: Serial and Restore Code are required.")
-            return
-
-        authenticator.get_bearer_token(session_token)
-        retrieved_info = authenticator.retrieve_device_secret(serial, restore_code)
-        device_info = {"serial": serial, "restoreCode": restore_code, "deviceSecret": retrieved_info["deviceSecret"]}
-        _process_and_save_results(authenticator, device_info, encryption_manager)
-    except (AuthenticatorError, EncryptionError, IOError, ValueError, Exception) as e:
-        print(f"\nError during retrieve process: {e}", file=sys.stderr)
-
-def _select_json_file(prompt: str) -> Optional[Path]:
-    json_files = sorted([p for p in Path('.').glob('*.json') if p.is_file()])
-    if not json_files:
-        print("No JSON files found in the current directory.")
-        return None
-
-    print("\nFound the following JSON files:")
-    for i, file in enumerate(json_files, 1):
-        print(f"{i}. {file.name}")
-
-    while True:
-        try:
-            choice = input(f"{prompt} (number or 'c' to cancel): ").strip().lower()
-            if choice == 'c': return None
-            index = int(choice) - 1
-            if 0 <= index < len(json_files): return json_files[index]
-            else: print(f"Invalid selection. Enter a number between 1 and {len(json_files)}.")
-        except (ValueError, EOFError, KeyboardInterrupt):
-            print("\nInvalid input or operation cancelled.")
-            return None
-
-def _is_file_likely_encrypted(file_path: Path) -> bool:
-    try:
-        content = file_path.read_text(encoding='utf-8', errors='ignore')
-        data = json.loads(content[:1024])
-        return isinstance(data, dict) and all(k in data for k in ('salt', 'nonce', 'ciphertext'))
-    except (IOError, json.JSONDecodeError, ValueError):
-        return False
-
-def _handle_reconstruct_action(authenticator: BattleNetAuthenticator) -> None:
-    selected_file = _select_json_file("Select JSON file to reconstruct from")
-    if not selected_file: return
-
-    encryption_manager: Optional[EncryptionManager] = None
-    try:
-        if _is_file_likely_encrypted(selected_file):
-            print(f"File '{selected_file.name}' appears to be encrypted.")
-            encryption_manager = _prompt_for_passphrase(f"Enter passphrase for '{selected_file.name}': ")
-            if not encryption_manager: return
-
-        data = authenticator.load_json(str(selected_file), encryption_manager)
-    except (FileNotFoundError, IOError, DecryptionError, json.JSONDecodeError) as e:
-        print(f"\nError loading file: {e}", file=sys.stderr)
-        return
-
-    serial = data.get("serial")
-    if not serial:
-        print("Could not find 'serial' in the JSON file.")
-        return
-
-    totp_url = data.get("totpUrl")
-    if not totp_url:
-        base32_secret = data.get("base32Secret") or authenticator.convert_secret_to_base32(data.get("deviceSecret", ""))
-        if not base32_secret:
-            print("Error: Could not find or derive a secret from the JSON file.")
-            return
+        base32_secret = self.auth.convert_secret_to_base32(secret_hex)
         label = f"Battle.net:{serial}"
         totp_url = f"otpauth://totp/{label}?secret={base32_secret}&issuer=Battle.net&digits=8&algorithm=SHA1&period=30"
-        print(f"Reconstructed TOTP URL: {totp_url}")
 
-    print("\n--- Reconstructed TOTP Details ---")
-    print(f"URL: {totp_url}")
-    print("App Settings: Algorithm=SHA1, Digits=8, Period=30s")
-    
-    try:
-        authenticator.generate_qr_code(totp_url, f"reconstructed_{serial}")
-    except (IOError, Exception) as e:
-        print(f"Error generating QR code: {e}", file=sys.stderr)
-    
-    input("\nPress Enter to return to the main menu...")
+        print("\nTOTP:")
+        print(f"  Base32: {base32_secret}")
+        print(f"  URL: {totp_url}")
+        print("  Algorithm: SHA1 | Digits: 8 | Period: 30s")
 
-def _handle_encrypt_files_action(authenticator: BattleNetAuthenticator) -> None:
-    json_files = sorted([p for p in Path('.').glob('*.json') if p.is_file()])
-    if not json_files:
-        print("No JSON files found to encrypt."); return
+        data = {
+            "serial": serial,
+            "restoreCode": restore,
+            "deviceSecret": secret_hex,
+            "base32Secret": base32_secret,
+            "totpUrl": totp_url,
+            "timestamp": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        }
 
-    plain_files = []
-    print("\nChecking JSON files:")
-    for file_path in json_files:
-        if not _is_file_likely_encrypted(file_path):
-            try:
-                json.loads(file_path.read_text(encoding='utf-8'))
-                plain_files.append(file_path)
-                print(f" - {file_path.name} (Plain Text)")
-            except (json.JSONDecodeError, IOError):
-                print(f" - {file_path.name} (Not a valid plain JSON, skipping)")
-        else:
-            print(f" - {file_path.name} (Already Encrypted)")
-    
-    if not plain_files:
-        print("\nNo plain text JSON files found to encrypt."); return
+        base = f"battlenet_authenticator_{serial}"
+        self.auth.save_json(f"{base}.json", data, enc)
+        self.auth.generate_qr_code(totp_url, base)
 
-    encryption_manager = _prompt_for_passphrase("Enter passphrase for encryption: ")
-    if not encryption_manager: return
-
-    success, fail = 0, 0
-    for file_path in plain_files:
-        print(f"\nEncrypting '{file_path.name}'...")
+    # Actions
+    def handle_attach(self) -> None:
+        token = self.prompt_token()
+        if not token:
+            return
+        enc = self.prompt_encrypt()
+        enc_mgr = self.prompt_passphrase("Passphrase for new file: ") if enc else None
         try:
-            plain_data = json.loads(file_path.read_text(encoding='utf-8'))
-            authenticator.save_json(str(file_path), plain_data, encryption_manager)
-            success += 1
-        except (IOError, EncryptionError, json.JSONDecodeError) as e:
-            print(f"Error encrypting '{file_path.name}': {e}", file=sys.stderr)
-            fail += 1
-    print(f"\nEncryption complete. {success} succeeded, {fail} failed.")
+            self.auth.get_bearer_token(token)
+            device = self.auth.attach_authenticator()
+            self.process_and_save(device, enc_mgr)
+        except (AuthenticatorError, EncryptionError, IOError, ValueError, Exception) as e:
+            print(f"\nAttach error: {e}", file=sys.stderr)
 
-def _handle_decrypt_file_action(authenticator: BattleNetAuthenticator) -> None:
-    selected_file = _select_json_file("Select JSON file to decrypt")
-    if not selected_file: return
+    def handle_retrieve(self) -> None:
+        token = self.prompt_token()
+        if not token:
+            return
+        enc = self.prompt_encrypt()
+        enc_mgr = self.prompt_passphrase("Passphrase for retrieved file: ") if enc else None
+        try:
+            serial = input("Authenticator Serial: ").strip()
+            restore = input("Restore Code: ").strip()
+            if not serial or not restore:
+                print("Serial and Restore Code required.")
+                return
+            self.auth.get_bearer_token(token)
+            info = self.auth.retrieve_device_secret(serial, restore)
+            device = {"serial": serial, "restoreCode": restore, "deviceSecret": info["deviceSecret"]}
+            self.process_and_save(device, enc_mgr)
+        except (AuthenticatorError, EncryptionError, IOError, ValueError, Exception) as e:
+            print(f"\nRetrieve error: {e}", file=sys.stderr)
 
-    if not _is_file_likely_encrypted(selected_file):
-        print(f"Warning: File '{selected_file.name}' may not be encrypted. Proceeding anyway.")
+    def handle_reconstruct(self) -> None:
+        p = self.select_json_file("Select JSON to reconstruct from")
+        if not p:
+            return
+        enc_mgr: Optional[EncryptionManager] = None
+        try:
+            if self.is_encrypted(p):
+                print(f"'{p.name}' looks encrypted.")
+                enc_mgr = self.prompt_passphrase(f"Passphrase for '{p.name}': ")
+                if not enc_mgr:
+                    return
+            data = self.auth.load_json(str(p), enc_mgr)
+        except (FileNotFoundError, IOError, DecryptionError, json.JSONDecodeError) as e:
+            print(f"\nLoad error: {e}", file=sys.stderr)
+            return
+        except Exception as e:
+            print(f"\nUnexpected: {e}", file=sys.stderr)
+            return
 
-    encryption_manager = _prompt_for_passphrase(f"Enter passphrase for '{selected_file.name}': ")
-    if not encryption_manager: return
+        serial = data.get("serial") or input("Serial missing. Enter Serial: ").strip()
+        if not serial:
+            print("Serial required.")
+            return
 
-    try:
-        decrypted_data = authenticator.load_json(str(selected_file), encryption_manager)
-        print("\nDecryption successful.")
-        print(json.dumps(decrypted_data, indent=4, ensure_ascii=False))
-        
-        if input("\nSave decrypted data to a new file? (y/n): ").strip().lower() == 'y':
-            new_filename = input("Enter new filename (e.g., decrypted.json): ").strip()
-            if new_filename:
-                authenticator.save_json(new_filename, decrypted_data, None)
+        totp_url = data.get("totpUrl")
+        base32_secret = data.get("base32Secret")
+        hex_secret = data.get("deviceSecret")
+        if not totp_url:
+            if base32_secret:
+                label = f"Battle.net:{serial}"
+                totp_url = f"otpauth://totp/{label}?secret={base32_secret}&issuer=Battle.net&digits=8&algorithm=SHA1&period=30"
+            elif hex_secret:
+                try:
+                    base32_secret = self.auth.convert_secret_to_base32(hex_secret)
+                    label = f"Battle.net:{serial}"
+                    totp_url = f"otpauth://totp/{label}?secret={base32_secret}&issuer=Battle.net&digits=8&algorithm=SHA1&period=30"
+                except ValueError as e:
+                    print(f"Secret conversion error: {e}", file=sys.stderr)
+                    return
             else:
-                print("Invalid filename. Save cancelled.")
+                print("No totpUrl/base32Secret/deviceSecret found.")
+                return
 
-    except (IOError, DecryptionError, json.JSONDecodeError) as e:
-        print(f"\nError during decryption: {e}", file=sys.stderr)
-
-def interactive_cli() -> None:
-    set_console_title()
-    print_header()
-    authenticator = BattleNetAuthenticator()
-
-    actions = {
-        "1": ("Attach a new authenticator", _handle_attach_action),
-        "2": ("Retrieve existing device secret", _handle_retrieve_action),
-        "3": ("Reconstruct TOTP from JSON", _handle_reconstruct_action),
-        "4": ("Encrypt existing plain JSON file(s)", _handle_encrypt_files_action),
-        "5": ("Decrypt an encrypted JSON file", _handle_decrypt_file_action),
-        "6": ("Exit", lambda _: graceful_exit()),
-    }
-
-    while True:
-        print("\nChoose an action:")
-        for key, (desc, _) in actions.items():
-            print(f"{key}. {desc}")
+        print("\nReconstructed TOTP:")
+        if base32_secret:
+            print(f"  Base32: {base32_secret}")
+        print(f"  URL: {totp_url}")
+        print("  Algorithm: SHA1 | Digits: 8 | Period: 30s")
 
         try:
-            choice = input("Enter your choice: ").strip()
-            if choice in actions:
-                actions[choice][1](authenticator)
+            self.auth.generate_qr_code(totp_url, f"reconstructed_{serial}")
+        except (IOError, Exception) as e:
+            print(f"QR error: {e}", file=sys.stderr)
+
+        input("\nPress Enter to continue...")
+
+    def handle_encrypt_files(self) -> None:
+        files = sorted([p for p in Path('.').glob('*.json') if p.is_file()])
+        if not files:
+            print("No JSON files found.")
+            return
+        plain = []
+        for p in files:
+            if not self.is_encrypted(p):
+                try:
+                    with open(p, 'r', encoding='utf-8') as f:
+                        json.load(f)
+                    plain.append(p)
+                except Exception:
+                    pass
+        if not plain:
+            print("No plain JSON files to encrypt.")
+            return
+        print("\nPlain JSON files:")
+        for i, p in enumerate(plain, 1):
+            print(f"{i}. {p.name}")
+        enc_mgr = self.prompt_passphrase("Passphrase for encryption: ")
+        if not enc_mgr:
+            return
+        for p in plain:
+            try:
+                with open(p, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                BattleNetAuthenticator.save_json(str(p), data, enc_mgr)
+            except Exception as e:
+                print(f"Encrypt '{p.name}' failed: {e}", file=sys.stderr)
+
+    def handle_decrypt_file(self) -> None:
+        p = self.select_json_file("Select encrypted JSON to decrypt")
+        if not p:
+            return
+        if not self.is_encrypted(p):
+            print("Warning: File does not look encrypted; attempting anyway.")
+        enc_mgr = self.prompt_passphrase(f"Passphrase for '{p.name}': ")
+        if not enc_mgr:
+            return
+        try:
+            data = self.auth.load_json(str(p), enc_mgr)
+            while True:
+                try:
+                    c = input("Decryption OK. (V)iew, (S)ave decrypted copy, (C)ontinue: ").strip().lower()
+                except (EOFError, KeyboardInterrupt):
+                    print("\nCancelled.")
+                    break
+                if c == 'v':
+                    print(json.dumps(data, indent=4, ensure_ascii=False))
+                elif c == 's':
+                    base = input("Base name for decrypted file (e.g. decrypted_data): ").strip()
+                    if not base:
+                        print("Name required.")
+                        continue
+                    out = f"{base}.json"
+                    if Path(out).exists():
+                        o = input(f"'{out}' exists. Overwrite? (y/n): ").strip().lower()
+                        if o != 'y':
+                            continue
+                    try:
+                        BattleNetAuthenticator.save_json(out, data, None)
+                        break
+                    except Exception as e:
+                        print(f"Save failed: {e}", file=sys.stderr)
+                elif c == 'c':
+                    break
+                else:
+                    print("Choose V/S/C.")
+        except Exception as e:
+            print(f"Decrypt failed: {e}", file=sys.stderr)
+
+    # Helpers
+    @staticmethod
+    def select_json_file(prompt: str) -> Optional[Path]:
+        files = sorted([p for p in Path(".").glob("*.json") if p.is_file()])
+        if not files:
+            print("No JSON files found.")
+            return None
+        print("\nJSON files:")
+        for i, f in enumerate(files, 1):
+            print(f"{i}. {f.name}")
+        while True:
+            try:
+                s = input(f"{prompt} (number or 'c' to cancel): ").strip().lower()
+                if s == "c":
+                    return None
+                idx = int(s) - 1
+                if 0 <= idx < len(files):
+                    return files[idx]
+                print(f"Enter 1..{len(files)}")
+            except (ValueError, EOFError, KeyboardInterrupt):
+                print("\nCancelled.")
+                return None
+
+    @staticmethod
+    def is_encrypted(p: Path) -> bool:
+        try:
+            with open(p, "rb") as f:
+                b = f.read(1024)
+            obj = json.loads(b.decode("utf-8"))
+            return isinstance(obj, dict) and all(k in obj for k in ("salt", "nonce", "ciphertext"))
+        except Exception:
+            return False
+
+    def run(self) -> None:
+        set_console_title()
+        print_header()
+        actions = {
+            "1": ("Attach a new authenticator", self.handle_attach),
+            "2": ("Retrieve existing device secret", self.handle_retrieve),
+            "3": ("Reconstruct TOTP from JSON", self.handle_reconstruct),
+            "4": ("Encrypt existing plain JSON file(s)", self.handle_encrypt_files),
+            "5": ("Decrypt an encrypted JSON file", self.handle_decrypt_file),
+            "6": ("Exit", lambda: graceful_exit()),
+        }
+        while True:
+            print("\nChoose an action:")
+            for k, (d, _) in actions.items():
+                print(f"{k}. {d}")
+            try:
+                c = input("Choice: ").strip()
+            except (EOFError, KeyboardInterrupt):
+                print()
+                graceful_exit()
+            sel = actions.get(c)
+            if sel:
+                _, fn = sel
+                try:
+                    fn()
+                except KeyboardInterrupt:
+                    print("\nCancelled by user.")
             else:
                 print("Invalid choice.")
-        except (EOFError, KeyboardInterrupt):
-            graceful_exit()
+
 
 if __name__ == "__main__":
     try:
-        interactive_cli()
+        CLI().run()
+    except KeyboardInterrupt:
+        print()
+        graceful_exit()
     except Exception as e:
-        print(f"\nFATAL ERROR: An unhandled exception occurred: {e}", file=sys.stderr)
+        print(f"\nFATAL: {e}", file=sys.stderr)
         import traceback
         traceback.print_exc()
         graceful_exit(1)
