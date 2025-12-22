@@ -122,3 +122,6 @@ Version `1.3.0` introduces a significant improvement to the security of *newly e
     *   A QR code image containing the `otpauth://` URL.
     *   Scan this with your authenticator app to add the key.
     *   Securely delete after successful import.
+ 
+## Donations
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/P5P21QRW51)
