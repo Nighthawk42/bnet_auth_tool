@@ -1,14 +1,8 @@
 # Battle.net Authenticator Tool
 
-# Update: 31/08/2025
+# Update: 18/01/2026
 
-For the moment due to ongoing changes to the Battle.net API the prebuilt binaries will not work, nor where the Python script.
-
-Instead, try using the `dev` branch Python script for the time being.
-
-https://github.com/Nighthawk42/bnet_auth_tool/blob/dev/bnet_auth_tool.py
-
-After a few weeks of testing, I will update the `main` branch and release a `1.4.0` binary for those who prefer not to run the Python script directly.
+Due to ongoing changes to the Battle.net API has changed again rendering this project unavailable until more information is gather. Existing users may continue to use their attached security codes, but adding new ones will be impossible for the time being. Unless someone can figure out and let me know what the new endpoints are.
 
 ---
 
