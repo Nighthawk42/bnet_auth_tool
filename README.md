@@ -2,7 +2,7 @@
 
 # Update: 18/01/2026
 
-Due to ongoing changes to the Battle.net API has changed again rendering this project unavailable until more information is gather. Existing users may continue to use their attached security codes, but adding new ones will be impossible for the time being. Unless someone can figure out and let me know what the new endpoints are.
+Due to ongoing changes to the Battle.net API this project unavailable until more information is gather. Existing users may continue to use their attached security codes, but adding new ones will be impossible for the time being. Unless someone can figure out and let me know what the new endpoints are.
 
 ---
 
