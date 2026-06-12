@@ -9,7 +9,7 @@
 ### 💻 What Happened?
 Blizzard recently modified their identity API endpoints and restricted authentication scopes. This change was implemented to prevent users from extracting their raw device secrets and forcing them to use the heavy, official Battle.net mobile app for 2FA. 
 
-This tool was built using completely legal, public API documentation without packet sniffing. However, because Blizzard has locked down these endpoints to restrict user choice, **you can no longer attach new authenticators or retrieve secrets online using this script.**
+This tool was built using completely legal, public API access. However, because Blizzard has locked down these endpoints to restrict user choice, **you can no longer attach new authenticators or retrieve secrets online using this script.**
 
 ### 🚨 Read Before Opening an Issue:
 *   **Will this be fixed?** Only if a someone manages to legally map the new endpoints or payload schemas. Pull Requests are welcome.
