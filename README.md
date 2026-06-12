@@ -2,19 +2,41 @@
 
 ---
 
-# ⚠️ ARCHIVED / DEPRECATED ⚠️
+# 🛑 NOT MAINTAINED / BROKEN BY BLIZZARD 🛑
 
-**This project is no longer maintained and will not receive further updates.**
+**This repository is functional ONLY as a local backup manager. Online features are dead.**
 
-Blizzard has changed their API endpoints. Because these new endpoints are unknown, **this tool is effectively broken.** 
+### 💻 What Happened?
+Blizzard recently modified their identity API endpoints and restricted authentication scopes. This change was implemented to prevent users from extracting their raw device secrets and forcing them to use the heavy, official Battle.net mobile app for 2FA. 
 
-*   **Existing Users:** This tool will only function locally if you have already linked your serial numbers and possess a local backup of your encrypted JSON.
-*   **Current Limitations:** You cannot add, remove, or view keys. 
-*   **Account Issues:** If you are locked out of your account, you **must** contact [Blizzard Customer Support](https://us.battle.net/support/en/) directly to have your serial removed. I cannot assist with account recovery.
+This tool was built using completely legal, public API documentation without packet sniffing. However, because Blizzard has locked down these endpoints to restrict user choice, **you can no longer attach new authenticators or retrieve secrets online using this script.**
 
-**Please do not open new issues or pull requests; they will be closed immediately without response.**
+### 🚨 Read Before Opening an Issue:
+*   **Will this be fixed?** Only if a someone manages to legally map the new endpoints or payload schemas. Pull Requests are welcome.
+*   **Are you locked out of your account?** I have zero association with Blizzard and zero access to their backend. **Do not open an issue.** You must contact [Blizzard Customer Support](https://us.battle.net/support/en/) directly to have the authenticator detached from your account. 
+*   **Spam Policy:** Any issue opened asking for a "fix," reporting an API connection failure, or asking for account help will be locked and deleted immediately.
 
 ---
+
+### 🔍 Legacy Local Functions (What Still Works)
+If you already ran this tool in the past and have your `battlenet_authenticator_SERIAL.json` backup file, the tool is 100% operational offline:
+
+*   **Reconstruct TOTP:** Generates your standard RFC 6238 TOTP keys (8 digits, 30s period) and outputs a QR code to import into **Aegis, Bitwarden, 1Password, or Google Authenticator**.
+*   **Local Security:** Encrypt or decrypt your local JSON backups using strong AES-256-GCM encryption (upgraded to 600k PBKDF2 iterations in v1.3.0).
+
+---
+
+## 🛠️ Offline Usage
+
+If you are running the tool locally to regenerate keys from an existing backup:
+
+```bash
+pip install requests cryptography "qrcode[pil]"
+python bnet_auth_tool.py
+```
+
+---
+# Version History
 
 Version: 1.3.0
 
@@ -30,7 +52,7 @@ A Python-based command-line tool for managing Battle.net software authenticators
 
 **Disclaimer:** This tool interacts with your Battle.net account and handles sensitive security information (authenticator secrets). Use it responsibly and at your own risk. Ensure you understand the security implications and securely manage any generated files and passphrases. The author is not responsible for any damage or loss resulting from the use of this tool.
 
-## Features
+# Features
 
 *   **Attach New Authenticator:** Guides through attaching a new virtual authenticator.
 *   **Retrieve Existing Secret:** Recovers the secret key if you have the Serial and Restore Code.
