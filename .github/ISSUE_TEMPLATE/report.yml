@@ -1,0 +1,34 @@
+name: "Bug Report / API Endpoint Update"
+description: "Read before opening. Account recovery requests will be closed instantly."
+title: "[API Update]: "
+labels: ["help wanted"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        # ⚠️ STOP AND READ THIS ⚠️
+        
+        **Blizzard changed their API endpoints. This tool is currently broken.**
+        
+        * **Account Recovery:** I cannot help you. You must contact Blizzard Customer Support.
+        * **Fixing the Tool:** This tool will remain broken until a developer sniffs out and provides the updated Blizzard endpoints/payload configurations.
+
+  - type: checkboxes
+    id: acknowledgment
+    attributes:
+      label: Mandatory Acknowledgment
+      description: You must agree to these terms before submitting.
+      options:
+        - label: "I understand that this tool is currently broken due to Blizzard's API changes."
+          required: true
+        - label: "I understand that the repository maintainer CANNOT recover my Battle.net account."
+          required: true
+
+  - type: textarea
+    id: technical-details
+    attributes:
+      label: Updated Endpoint Data / Technical Contribution
+      description: "If you have intercepted the new Blizzard API traffic, please provide the new endpoints, request headers, or payload structure here."
+      placeholder: "e.g., New authentication endpoint is found at..."
+    validations:
+      required: false
