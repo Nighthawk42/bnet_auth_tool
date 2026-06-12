@@ -1,8 +1,18 @@
 # Battle.net Authenticator Tool
 
-# Update: 18/01/2026
+---
 
-Due to ongoing changes to the Battle.net API this project unavailable until more information is gathered. Existing users may continue to use their attached security codes, but adding new ones will be impossible for the time being. Unless someone can figure out and let me know what the new endpoints are.
+# ⚠️ ARCHIVED / DEPRECATED ⚠️
+
+**This project is no longer maintained and will not receive further updates.**
+
+Blizzard has changed their API endpoints. Because these new endpoints are unknown, **this tool is effectively broken.** 
+
+*   **Existing Users:** This tool will only function locally if you have already linked your serial numbers and possess a local backup of your encrypted JSON.
+*   **Current Limitations:** You cannot add, remove, or view keys. 
+*   **Account Issues:** If you are locked out of your account, you **must** contact [Blizzard Customer Support](https://us.battle.net/support/en/) directly to have your serial removed. I cannot assist with account recovery.
+
+**Please do not open new issues or pull requests; they will be closed immediately without response.**
 
 ---
 
