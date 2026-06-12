@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Official Blizzard Support
+    url: https://us.battle.net/support/en/
+    about: If you are locked out of your Battle.net account, contact Blizzard. The project maintainer cannot recover your account.
