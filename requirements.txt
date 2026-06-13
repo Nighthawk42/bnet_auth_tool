@@ -1,4 +1,22 @@
-cryptography
-qrcode
-Pillow
-requests
+# ---------------------------------------------------------------------------
+# Fallback dependency list for `pip install -r requirements.txt`.
+#
+# The canonical source of truth is pyproject.toml; this file mirrors its
+# runtime dependencies for environments without uv/PEP 621 support.
+# For development, prefer:  uv sync --extra dev   (or)  pip install -e .[dev]
+# ---------------------------------------------------------------------------
+
+# HTTP client for the (online) Battle.net authenticator API
+requests>=2.31
+
+# QR-code generation (Pillow is pulled in by the [pil] extra for PNG output)
+qrcode[pil]>=7.4
+
+# AES-256-GCM encryption + scrypt/PBKDF2 key derivation for the local vault
+cryptography>=42.0
+
+# YAML parsing for the user-editable settings file (endpoints, KDF, TOTP)
+PyYAML>=6.0
+
+# Cross-platform resolution of the per-user data/config directories
+platformdirs>=4.0

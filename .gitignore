@@ -1,0 +1,56 @@
+# ---------------------------------------------------------------------------
+# Secrets — NEVER commit authenticator material
+# ---------------------------------------------------------------------------
+# Legacy per-serial backups dumped by old versions
+battlenet_authenticator_*.json
+reconstructed_*.json
+# QR codes contain the raw TOTP secret
+*.png
+!docs/**/*.png
+# Encrypted vault / exported secrets
+*.vault
+vault.json
+secrets.yaml
+# User-edited local settings copy (may contain custom endpoints)
+/settings.local.yaml
+
+# ---------------------------------------------------------------------------
+# Python
+# ---------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+wheels/
+*.egg
+
+# ---------------------------------------------------------------------------
+# Virtual environments / tooling
+# ---------------------------------------------------------------------------
+.venv/
+venv/
+env/
+.uv/
+.python-version
+# uv.lock is intentionally committed for reproducible installs
+
+# ---------------------------------------------------------------------------
+# Test / lint caches
+# ---------------------------------------------------------------------------
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+
+# ---------------------------------------------------------------------------
+# Editors / OS
+# ---------------------------------------------------------------------------
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db

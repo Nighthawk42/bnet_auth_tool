@@ -1,34 +1,55 @@
 name: "Bug Report / API Endpoint Update"
-description: "Read before opening. Account recovery requests will be closed instantly."
-title: "[API Update]: "
-labels: ["help wanted"]
+description: "Report a bug or share updated Blizzard endpoint details. Account-recovery requests will be closed."
+title: "[Bug]: "
+labels: ["bug"]
 body:
   - type: markdown
     attributes:
       value: |
-        # ⚠️ STOP AND READ THIS ⚠️
-        
-        **Blizzard changed their API endpoints. This tool is currently broken.**
-        
-        * **Account Recovery:** I cannot help you. You must contact Blizzard Customer Support.
-        * **Fixing the Tool:** This tool will remain broken until a developer sniffs out and provides the updated Blizzard endpoints/payload configurations.
+        Thanks for contributing!
+
+        * **Account recovery:** the maintainer has no access to Blizzard's backend and
+          cannot recover accounts. Contact Blizzard Customer Support instead.
+        * **Online flows are unverified** against the live Blizzard API and may be blocked
+          at any time. The offline vault / TOTP / migration features are the supported core.
 
   - type: checkboxes
     id: acknowledgment
     attributes:
-      label: Mandatory Acknowledgment
-      description: You must agree to these terms before submitting.
+      label: Acknowledgment
       options:
-        - label: "I understand that this tool is currently broken due to Blizzard's API changes."
+        - label: "I understand the maintainer CANNOT recover my Battle.net account."
           required: true
-        - label: "I understand that the repository maintainer CANNOT recover my Battle.net account."
+        - label: "This is not an account-recovery request."
           required: true
 
-  - type: textarea
-    id: technical-details
+  - type: dropdown
+    id: area
     attributes:
-      label: Updated Endpoint Data / Technical Contribution
-      description: "If you have intercepted the new Blizzard API traffic, please provide the new endpoints, request headers, or payload structure here."
-      placeholder: "e.g., New authentication endpoint is found at..."
+      label: Affected area
+      options:
+        - "Vault / encryption (offline)"
+        - "TOTP / QR reconstruction (offline)"
+        - "Legacy migration (offline)"
+        - "Attach / retrieve (online, unverified)"
+        - "Other"
+    validations:
+      required: true
+
+  - type: textarea
+    id: details
+    attributes:
+      label: Description
+      description: "What happened, what you expected, and steps to reproduce. Include the tool version (`bnet-auth --version`) and your OS."
+      placeholder: "Steps to reproduce..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: endpoint-data
+    attributes:
+      label: Updated endpoint data (optional)
+      description: "If you've captured new Blizzard API endpoints/headers/payloads, share them here so settings.yaml can be updated."
+      placeholder: "e.g., the device endpoint now lives at /v3/..."
     validations:
       required: false

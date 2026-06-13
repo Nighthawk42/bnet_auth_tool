@@ -1,153 +1,124 @@
 # Battle.net Authenticator Tool
 
----
+A command-line tool for managing **Battle.net software authenticators**. It can
+attach/retrieve authenticator secrets online, and — most importantly — keep your
+TOTP backups in a single **encrypted local vault** so you can re-import them into
+any standard authenticator app (Aegis, Bitwarden, 1Password, Google Authenticator, …).
 
-# 🛑 NOT MAINTAINED / BROKEN BY BLIZZARD 🛑
-
-**This repository is functional ONLY as a local backup manager. Online features are dead.**
-
-### 💻 What Happened?
-Blizzard recently modified their identity API endpoints and restricted authentication scopes. This change was implemented to prevent users from extracting their raw device secrets and forcing them to use the heavy, official Battle.net mobile app for 2FA. 
-
-This tool was built using completely legal, public API access. However, because Blizzard has locked down these endpoints to restrict user choice, **you can no longer attach new authenticators or retrieve secrets online using this script.**
-
-### 🚨 Read Before Opening an Issue:
-*   **Will this be fixed?** Only if a someone manages to legally map the new endpoints or payload schemas. Pull Requests are welcome.
-*   **Are you locked out of your account?** I have zero association with Blizzard and zero access to their backend. **Do not open an issue.** You must contact [Blizzard Customer Support](https://us.battle.net/support/en/) directly to have the authenticator detached from your account. 
-*   **Spam Policy:** Any issue opened asking for a "fix," reporting an API connection failure, or asking for account help will be locked and deleted immediately.
+> [!IMPORTANT]
+> **Online status is unverified.** The attach/retrieve flows depend on
+> Blizzard's identity API, which has changed before and may be blocked again.
+> They are kept here and made configurable, but are **not** guaranteed to work
+> against the live backend. The **offline** vault / TOTP / migration features are
+> fully tested and work regardless of Blizzard's API.
 
 ---
 
-### 🔍 Legacy Local Functions (What Still Works)
-If you already ran this tool in the past and have your `battlenet_authenticator_SERIAL.json` backup file, the tool is 100% operational offline:
+## What it does
 
-*   **Reconstruct TOTP:** Generates your standard RFC 6238 TOTP keys (8 digits, 30s period) and outputs a QR code to import into **Aegis, Bitwarden, 1Password, or Google Authenticator**.
-*   **Local Security:** Encrypt or decrypt your local JSON backups using strong AES-256-GCM encryption (upgraded to 600k PBKDF2 iterations in v1.3.0).
+* **Attach a new authenticator** (online, unverified) and store the secret in your vault.
+* **Retrieve an existing device secret** (online, unverified) from a serial + restore code.
+* **Reconstruct TOTP** keys and **QR codes** (RFC 6238: SHA1, 8 digits, 30s) from the vault.
+* **Encrypted vault** — all authenticators live in one AES‑256‑GCM file protected by a
+  passphrase (scrypt key derivation), stored in your OS user-data directory.
+* **Migrate legacy backups** — import old `battlenet_authenticator_*.json` files (plaintext
+  or encrypted with the older PBKDF2 scheme) into the vault.
 
----
+## Security model
 
-## 🛠️ Offline Usage
+| Aspect | Detail |
+| --- | --- |
+| Cipher | AES‑256‑GCM (authenticated encryption) |
+| KDF (new files) | **scrypt** (memory-hard), parameters in `settings.yaml` |
+| KDF (legacy files) | PBKDF2‑HMAC‑SHA256 (100k and 600k) — still decryptable |
+| Storage | single encrypted vault in the per-user data dir |
+| File permissions | vault and QR PNGs written `0600` (owner-only) on POSIX |
+| Writes | atomic (temp file + replace) so a crash can't truncate the vault |
 
-If you are running the tool locally to regenerate keys from an existing backup:
+> Your vault passphrase is the **only** way to decrypt your secrets. There is no
+> recovery if you lose it. QR-code PNGs contain the raw secret — delete them after import.
+
+## Install
+
+### With [uv](https://docs.astral.sh/uv/) (recommended)
 
 ```bash
-pip install requests cryptography "qrcode[pil]"
-python bnet_auth_tool.py
+uv tool install .          # install the `bnet-auth` command
+# or, for development:
+uv sync --extra dev
 ```
 
----
-# Version History
+### With pip
 
-Version: 1.3.0
+```bash
+pip install .
+# or, using the fallback dependency list:
+pip install -r requirements.txt && pip install .
+```
 
-A Python-based command-line tool for managing Battle.net software authenticators. This tool allows you to:
-
-*   Attach a new software authenticator to your Battle.net account.
-*   Retrieve the secret details of an *existing* software authenticator using its Serial Number and Restore Code.
-*   Generate standard TOTP (Time-Based One-Time Password) configuration (Base32 secret, `otpauth://` URL) and a QR code compatible with common authenticator apps (like Google Authenticator, Authy, Microsoft Authenticator, etc.).
-*   Optionally encrypt the saved authenticator details using strong AES-256-GCM encryption derived from a user-provided passphrase.
-*   Load previously saved authenticator details (plain or encrypted) to regenerate the TOTP URL and QR code.
-*   Encrypt previously saved plain-text authenticator files.
-*   Decrypt previously encrypted authenticator files (for viewing or saving as plain text).
-
-**Disclaimer:** This tool interacts with your Battle.net account and handles sensitive security information (authenticator secrets). Use it responsibly and at your own risk. Ensure you understand the security implications and securely manage any generated files and passphrases. The author is not responsible for any damage or loss resulting from the use of this tool.
-
-# Features
-
-*   **Attach New Authenticator:** Guides through attaching a new virtual authenticator.
-*   **Retrieve Existing Secret:** Recovers the secret key if you have the Serial and Restore Code.
-*   **Standard TOTP Output:** Generates Base32 secrets and `otpauth://` URLs compatible with RFC 6238 (SHA1, 8 Digits, 30s period for Battle.net).
-*   **QR Code Generation:** Creates `.png` QR codes for easy import into authenticator apps.
-*   **Secure File Encryption (Optional):** Uses AES-256-GCM with PBKDF2 (increased to 600k iterations in v1.3.0) for strong protection of saved secrets.
-*   **File Management:** Load, reconstruct, encrypt, and decrypt saved authenticator files (`.json`).
-*   **Backward Compatibility:** Can decrypt files encrypted with older versions (v1.2) that used fewer PBKDF2 iterations (100k).
-*   **Region Support:** Works with session tokens from various Battle.net regions (US, EU, KR, TW, CN detected).
-
-## Security Warning
-
-*   **Backup Your Data:** The `.json` file generated by this tool contains your authenticator's Serial, Restore Code, and the critical Device Secret. **Losing this file (especially if unencrypted) and the Restore Code means you could lose access to your authenticator.** Back up this file securely (e.g., encrypted external drive, password manager).
-*   **Protect Your Passphrase:** If you choose to encrypt the `.json` file, your passphrase is the *only* way to decrypt it. **There is no recovery for a lost passphrase.** Choose a strong, unique passphrase and store it securely.
-*   **Secure QR Codes:** The generated `.png` QR code also contains your secret key. Treat it as securely as the `.json` file. Delete it after successfully importing it into your authenticator app(s).
-*   **Session Token Exposure:** The process requires obtaining a temporary session token from your browser. Ensure you do this in a secure environment and log out afterwards if using a public computer.
-
-## Important Notice for Users Upgrading from v1.2
-
-Version `1.3.0` introduces a significant improvement to the security of *newly encrypted* files by increasing the **PBKDF2 iteration count**. This makes brute-force attacks against the encryption passphrase much harder.
-
-**Compatibility:**
-
-*   **✅ v1.3.0 CAN decrypt files encrypted by v1.2:** The new version automatically detects if a file is missing the iteration count field and assumes the old count for decryption. Your old encrypted files will work fine with v1.3.0.
-*   **❌ v1.2 CANNOT decrypt files encrypted by v1.3.0:** If you encrypt a file using v1.3.0 (either by attaching/retrieving and choosing encrypt, or using the "Encrypt existing" option), the older v1.2 script will *not* be able to decrypt it due to the mismatch in iteration counts.
-
-**Recommendation:**
-
-*   **Upgrade:** All users should upgrade to v1.3.0 or later for the improved security and compatibility handling.
-*   **(Optional) Re-encrypt:** For maximum security benefit on your existing files, you can:
-    1.  Use v1.3.0 to **decrypt** your old `.json` file (using option 5 and saving to a *new* plain file).
-    2.  Use v1.3.0 to **encrypt** that newly saved plain file (using option 4). This will re-encrypt it with the stronger 600k iterations.
-    3.  Securely delete the intermediate plain text file.
-
-## Requirements
-
-*   Python 3.7+
-*   Required Python libraries (install via pip):
-    *   `requests`
-    *   `cryptography`
-    *   `qrcode[pil]` (This installs both `qrcode` and the `Pillow` imaging library)
-
-## Installation
-
-**Recommended:** Download the pre-compiled executable from the [Releases page](https://github.com/Nighthawk42/bnet_auth_tool/releases/). This avoids needing Python or manual library installation.
-
-**Manual (using Python):**
-
-1.  Ensure Python 3.7+ and `pip` are installed and accessible from your command line.
-2.  Clone the repository or download the source code (`.zip`).
-    ```bash
-    git clone https://github.com/Nighthawk42/bnet_auth_tool.git
-    cd bnet_auth_tool
-    ```
-3.  Install the required libraries:
-    ```bash
-    pip install -r requirements.txt
-    # Or: pip install requests cryptography "qrcode[pil]"
-    ```
+Requires **Python 3.9+**.
 
 ## Usage
 
-1.  Open your terminal or command prompt.
-2.  Navigate to the directory where you placed the script or executable.
-3.  Run the tool:
-    *   If using the Python script:
-        ```bash
-        python bnet_auth_tool.py
-        # or potentially: python3 bnet_auth_tool.py
-        ```
-    *   If using the executable (Windows example):
-        ```bash
-        bnet_auth_tool.exe
-        ```
-4.  The tool will display a menu with available actions:
-    *   **Attach a new authenticator:** Guides you through getting a session token and attaches a new virtual authenticator, saving the details.
-    *   **Retrieve existing device secret:** Guides you through getting a session token and uses your existing Serial/Restore code to retrieve the secret, saving the details.
-    *   **Reconstruct TOTP from JSON:** Loads a saved `.json` file (plain or encrypted, prompts for passphrase if needed) and displays the TOTP info / generates a QR code.
-    *   **Encrypt existing plain JSON file(s):** Finds unencrypted `.json` files in the directory, prompts you to select which ones to encrypt, and asks for a passphrase. *Overwrites the original file.*
-    *   **Decrypt an encrypted JSON file:** Prompts you to select an encrypted `.json` file, asks for the passphrase, and then offers to display the decrypted data or save it to a *new* plain-text `.json` file.
-    *   **Exit:** Closes the tool.
-5.  Follow the on-screen prompts for each action. Pay close attention to instructions for obtaining the session token and handling passphrases.
+Run with no arguments for the interactive menu:
 
----
+```bash
+bnet-auth
+```
 
-## Output Files
+Or use scriptable subcommands:
 
-*   **`.json` File:** (`battlenet_authenticator_SERIAL.json`)
-    *   Contains the Serial Number, Restore Code, raw hexadecimal Device Secret, Base32 secret, `otpauth://` URL, and a timestamp. (Encrypted files also contain salt, nonce, and iteration count).
-    *   This file is crucial for backup and recovery.
-    *   Can be saved as plain text or encrypted (recommended).
-*   **`.png` File:** (`battlenet_authenticator_SERIAL.png` or `reconstructed_SERIAL.png`)
-    *   A QR code image containing the `otpauth://` URL.
-    *   Scan this with your authenticator app to add the key.
-    *   Securely delete after successful import.
- 
+```bash
+bnet-auth list                     # list authenticators in the vault
+bnet-auth reconstruct US-1234-...  # print TOTP details + optional QR
+bnet-auth migrate --dir .          # import legacy JSON backups from a folder
+bnet-auth paths                    # show config / data / vault locations
+bnet-auth attach                   # online (unverified)
+bnet-auth retrieve                 # online (unverified)
+```
+
+### Migrating from older versions
+
+Older releases dropped one `battlenet_authenticator_<serial>.json` per authenticator into
+the working directory. To pull them into the encrypted vault:
+
+```bash
+cd /folder/with/old/json/files
+bnet-auth migrate --dir .
+```
+
+You'll be prompted for the vault passphrase (creating it on first run) and for each
+encrypted legacy file's passphrase. After verifying the vault, **securely delete the old
+plaintext files**.
+
+## Configuration
+
+A user-editable `settings.yaml` is created on first run in your config directory
+(`bnet-auth paths` shows where). Edit it to change API endpoints, regions, KDF
+parameters, or TOTP output — handy if Blizzard moves an endpoint again. Any key you omit
+falls back to the bundled default.
+
+## Development
+
+```bash
+uv sync --extra dev
+uv run pytest        # tests
+uv run ruff check .  # lint
+```
+
+See [`CLAUDE.md`](CLAUDE.md) / [`AGENTS.md`](AGENTS.md) for the architecture overview.
+
+## Account recovery
+
+This project has **zero** association with Blizzard and no access to their backend. If you
+are locked out of your account, contact
+[Blizzard Customer Support](https://us.battle.net/support/en/) — the maintainer cannot
+recover accounts.
+
+## License
+
+[MIT](LICENSE) © 2024-2026 Nighthawk42
+
 ## Donations
+
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/P5P21QRW51)

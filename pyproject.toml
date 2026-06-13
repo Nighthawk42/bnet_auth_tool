@@ -1,0 +1,61 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "bnet-auth-tool"
+version = "2.0.0"
+description = "Manage Battle.net software authenticators: attach/retrieve secrets and back up TOTP keys in an encrypted local vault."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "Nighthawk42" }]
+keywords = ["battle.net", "blizzard", "authenticator", "totp", "2fa", "mfa", "otp"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Topic :: Security :: Cryptography",
+    "Topic :: Utilities",
+]
+
+dependencies = [
+    "requests>=2.31",
+    "qrcode[pil]>=7.4",
+    "cryptography>=42.0",
+    "PyYAML>=6.0",
+    "platformdirs>=4.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.5",
+]
+
+[project.urls]
+Homepage = "https://github.com/Nighthawk42/bnet_auth_tool"
+Repository = "https://github.com/Nighthawk42/bnet_auth_tool"
+Issues = "https://github.com/Nighthawk42/bnet_auth_tool/issues"
+
+[project.scripts]
+bnet-auth = "bnet_auth_tool.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/bnet_auth_tool"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "C4"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"

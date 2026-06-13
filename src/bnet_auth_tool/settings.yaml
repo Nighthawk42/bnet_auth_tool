@@ -1,0 +1,54 @@
+# ===========================================================================
+# bnet_auth_tool settings
+# ===========================================================================
+# This is the bundled default configuration. On first run a copy is written to
+# your per-user config directory (shown by `bnet-auth paths`); edit THAT copy
+# to change endpoints without touching the installed package. Any key omitted
+# from your copy falls back to the value here.
+# ===========================================================================
+
+# --- Online Battle.net authenticator REST API -----------------------------
+# These endpoints are reverse-engineered from the official client and are NOT
+# guaranteed stable. If Blizzard moves them, update the URLs below — that is
+# the whole point of keeping them in YAML.
+api:
+  # GLOBAL region host (US/EU/KR/PTR). CN uses authenticator.api.battle.net.
+  host: "https://authenticator-rest-api.bnet-identity.blizzard.net"
+  # setupAuthenticator — attach a new authenticator (stays on v1).
+  attach_path: "/v1/authenticator"
+  # restoreAuthenticator — retrieve an existing device secret (moved to v2,
+  # now requires accountIdentifier alongside serial + restoreCode).
+  device_path: "/v2/authenticator/device"
+  # OAuth SSO token exchange.
+  sso_url: "https://oauth.battle.net/oauth/sso"
+  # Official Battle.net app client id used for the client_sso grant.
+  client_id: "baedda12fe054e4abdfc3ad7bdea970a"
+  # Network timeout (seconds) for each request.
+  timeout: 20
+  # Recognised region prefixes for session-token validation.
+  region_prefixes: ["US-", "EU-", "KR-", "TW-", "CN-"]
+
+# --- TOTP output parameters (Battle.net uses non-default digits) -----------
+totp:
+  algorithm: "SHA1"
+  digits: 8
+  period: 30
+  issuer: "Battle.net"
+
+# --- Key derivation / encryption ------------------------------------------
+# New files are encrypted with scrypt + AES-256-GCM. Legacy PBKDF2 files
+# (including pre-v1.3 files missing an iteration count) remain decryptable.
+crypto:
+  # Active KDF for newly encrypted data: "scrypt" or "pbkdf2".
+  kdf: "scrypt"
+  scrypt:
+    # n must be a power of two. 2**17 ≈ 128 MiB with r=8, p=1.
+    n: 131072
+    r: 8
+    p: 1
+  pbkdf2:
+    # Used when kdf == pbkdf2, and as the default for decrypting modern
+    # PBKDF2 files that carry an explicit iteration count.
+    iterations: 600000
+    # Assumed iteration count for legacy files missing the field.
+    legacy_iterations: 100000
