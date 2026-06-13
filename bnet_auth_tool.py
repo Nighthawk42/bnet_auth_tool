@@ -31,8 +31,15 @@ class AppConfig:
     AUTHOR = "Nighthawk42"
     LICENSE = "MIT"
     GITHUB_URL = "https://github.com/Nighthawk42/bnet_auth_tool"
-    
-    BASE_URL = "https://authenticator-rest-api.bnet-identity.blizzard.net/v1/authenticator"
+
+    # Authenticator REST API host (GLOBAL region: US/EU/KR/PTR).
+    # CN uses "https://authenticator.api.battle.net" in the official app.
+    API_HOST = "https://authenticator-rest-api.bnet-identity.blizzard.net"
+    # Attach stays on v1 (setupAuthenticator: POST /v1/authenticator).
+    ATTACH_URL = f"{API_HOST}/v1/authenticator"
+    # Retrieve/restore moved to v2 and now requires accountIdentifier
+    # (restoreAuthenticator: POST /v2/authenticator/device).
+    DEVICE_URL = f"{API_HOST}/v2/authenticator/device"
     SSO_URL = "https://oauth.battle.net/oauth/sso"
     CLIENT_ID = "baedda12fe054e4abdfc3ad7bdea970a"
 
@@ -185,8 +192,35 @@ class BattleNetAuthenticator:
                 raise AuthenticatorError(f"Unexpected content type '{content_type}' received from {url}.")
 
         except requests.exceptions.HTTPError as e:
-            error_details = f" Server Response: {e.response.text[:500]}"
-            raise AuthenticatorError(f"HTTP error {e.response.status_code} from {url}.{error_details}") from e
+            status = e.response.status_code
+            raw_body = e.response.text or ""
+
+            # The MFA server returns errors as JSON {errorCode, message},
+            # with codes shaped like BLZBNTARA1000xxxx. Surface them when present.
+            blz_detail = ""
+            try:
+                err_json = e.response.json()
+                if isinstance(err_json, dict) and (err_json.get("errorCode") or err_json.get("message")):
+                    blz_detail = f" [errorCode={err_json.get('errorCode')} message={err_json.get('message')}]"
+            except (ValueError, json.JSONDecodeError):
+                pass
+
+            # Hints about the root cause, since the server contract can change.
+            # If the body carries a BLZ errorCode, the route exists and processed the
+            # request (e.g. 404 BLZBNTARA...312 = authenticator not found) — not a moved route.
+            hint = ""
+            if status == 404 and not blz_detail:
+                hint = (" Hint: route not found. The endpoint may have changed version"
+                        " (e.g. retrieve moved from /v1/authenticator/device to /v2/authenticator/device).")
+            elif status in (401, 403):
+                hint = (" Hint: authorization failed (token/scope rejected). For attach, the route is"
+                        " identical to the official app, so a 401/403 points to server-side gating of"
+                        " the client_sso flow for this client.")
+
+            error_details = f" Server Response: {raw_body[:500]}"
+            raise AuthenticatorError(
+                f"HTTP error {status} from {url}.{blz_detail}{hint}{error_details}"
+            ) from e
         except requests.exceptions.RequestException as e:
             raise AuthenticatorError(f"Request failed for {url}: {e}") from e
         except json.JSONDecodeError as e:
@@ -217,7 +251,13 @@ class BattleNetAuthenticator:
             raise AuthenticatorError("Bearer token not set. Call get_bearer_token first.")
         
         print("Attempting to attach a new authenticator...")
-        response_data = self._make_request("POST", AppConfig.BASE_URL, headers={"accept": "application/json"})
+        response_data = self._make_request("POST", AppConfig.ATTACH_URL, headers={"accept": "application/json"})
+
+        if response_data.get("requireHealup"):
+            raise AuthenticatorError(
+                "Server returned requireHealup=true: the account requires a 'heal up' step before "
+                "credentials can be issued. The official app handles this flow; this tool cannot."
+            )
 
         if not all(key in response_data for key in ["serial", "restoreCode", "deviceSecret"]):
             raise AuthenticatorError(f"API response missing expected keys. Got: {response_data.keys()}")
@@ -225,15 +265,26 @@ class BattleNetAuthenticator:
         print("Authenticator attached successfully.")
         return response_data
 
-    def retrieve_device_secret(self, serial: str, restore_code: str) -> Dict[str, Any]:
-        if 'Authorization' not in self.session.headers:
-            raise AuthenticatorError("Bearer token not set. Call get_bearer_token first.")
-        
-        payload = {"serial": serial, "restoreCode": restore_code}
-        url = f"{AppConfig.BASE_URL}/device"
+    def retrieve_device_secret(self, account_identifier: str, serial: str, restore_code: str) -> Dict[str, Any]:
+        # The v2/device endpoint does NOT require a bearer/SSO: it authenticates via
+        # accountIdentifier + serial + restoreCode (like restoreAuthenticator in the official app).
+        # v2 contract: the server now requires accountIdentifier (account email or phone)
+        # in addition to serial and restoreCode. Fields are only trimmed (as in the official app).
+        payload = {
+            "accountIdentifier": account_identifier,
+            "serial": serial,
+            "restoreCode": restore_code,
+        }
+        url = AppConfig.DEVICE_URL
 
         print(f"Attempting to retrieve secret for serial {serial}...")
         response_data = self._make_request("POST", url, json_payload=payload)
+
+        if response_data.get("requireHealup"):
+            raise AuthenticatorError(
+                "Server returned requireHealup=true: the account requires a 'heal up' step before "
+                "credentials can be issued. The official app handles this flow; this tool cannot."
+            )
 
         if "deviceSecret" not in response_data:
             raise AuthenticatorError(f"API response missing 'deviceSecret'. Got: {response_data.keys()}")
@@ -398,8 +449,10 @@ def _handle_attach_action(authenticator: BattleNetAuthenticator) -> None:
     session_token = _get_session_token()
     if not session_token: return
 
-    encryption_manager = _prompt_for_passphrase("Enter passphrase to encrypt new file: ") if _prompt_for_encryption() else None
-    if _prompt_for_encryption() and not encryption_manager: return
+    encryption_manager = None
+    if _prompt_for_encryption():
+        encryption_manager = _prompt_for_passphrase("Enter passphrase to encrypt new file: ")
+        if not encryption_manager: return
 
     try:
         authenticator.get_bearer_token(session_token)
@@ -409,21 +462,23 @@ def _handle_attach_action(authenticator: BattleNetAuthenticator) -> None:
         print(f"\nError during attach process: {e}", file=sys.stderr)
 
 def _handle_retrieve_action(authenticator: BattleNetAuthenticator) -> None:
-    session_token = _get_session_token()
-    if not session_token: return
-
-    encryption_manager = _prompt_for_passphrase("Enter passphrase to encrypt retrieved file: ") if _prompt_for_encryption() else None
-    if _prompt_for_encryption() and not encryption_manager: return
+    # Retrieve via v2/device needs no session token / bearer: the server
+    # authenticates via accountIdentifier + serial + restoreCode.
+    encryption_manager = None
+    if _prompt_for_encryption():
+        encryption_manager = _prompt_for_passphrase("Enter passphrase to encrypt retrieved file: ")
+        if not encryption_manager: return
 
     try:
+        # The v2 endpoint requires the account identifier (email or phone), besides serial/restoreCode.
+        account_identifier = input("Enter your account email or phone number: ").strip()
         serial = input("Enter the Authenticator Serial number: ").strip()
         restore_code = input("Enter the Authenticator Restore Code: ").strip()
-        if not serial or not restore_code:
-            print("Error: Serial and Restore Code are required.")
+        if not account_identifier or not serial or not restore_code:
+            print("Error: Account identifier, Serial and Restore Code are required.")
             return
 
-        authenticator.get_bearer_token(session_token)
-        retrieved_info = authenticator.retrieve_device_secret(serial, restore_code)
+        retrieved_info = authenticator.retrieve_device_secret(account_identifier, serial, restore_code)
         device_info = {"serial": serial, "restoreCode": restore_code, "deviceSecret": retrieved_info["deviceSecret"]}
         _process_and_save_results(authenticator, device_info, encryption_manager)
     except (AuthenticatorError, EncryptionError, IOError, ValueError, Exception) as e:
