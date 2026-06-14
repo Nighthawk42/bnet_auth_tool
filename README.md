@@ -1,5 +1,12 @@
 # Battle.net Authenticator Tool
 
+> [!IMPORTANT]
+> **Work in Progress:** This rewrite is actively under development. Please report bugs via issues, and code contributions via Pull Requests are highly encouraged!
+>
+> **Development Note:** Parts of this codebase were generated/optimized using Claude. If you are ideologically opposed to LLM-assisted development, you are entirely free to skip using this software or fork it and strip it out yourself.
+
+---
+
 > Back up Battle.net authenticator TOTP secrets in an encrypted local vault and export
 > them to any authenticator app — via CLI or an optional desktop GUI. Offline features
 > fully work; online attach/retrieve is unverified against Blizzard's API.
