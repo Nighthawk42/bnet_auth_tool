@@ -54,6 +54,12 @@ authenticator secrets online, and — most importantly — keep your TOTP backup
 
 ## Install
 
+### Pre-built Windows executables
+
+Grab `bnet-auth.exe` (CLI) and `bnet-auth-gui.exe` (GUI) from the
+[Releases page](https://github.com/Nighthawk42/bnet_auth_tool/releases) — no Python needed.
+Both share the same encrypted vault.
+
 ### With [uv](https://docs.astral.sh/uv/) (recommended)
 
 ```bash
@@ -134,6 +140,18 @@ uv run ruff check .  # lint
 ```
 
 See [`CLAUDE.md`](CLAUDE.md) / [`AGENTS.md`](AGENTS.md) for the architecture overview.
+
+### Building the executables
+
+```bash
+uv pip install -e ".[build]"
+python packaging/build_exes.py        # both exes -> dist/, zip -> release/
+python packaging/build_exes.py --skip-gui   # CLI only
+```
+
+The CLI is frozen with PyInstaller and the GUI with `flet pack` (PyInstaller plus the
+bundled Flet desktop runtime). Build outputs (`dist/`, `build/`, `release/`, `*.exe`,
+`*.zip`, `*.spec`) are gitignored.
 
 ## Account recovery
 

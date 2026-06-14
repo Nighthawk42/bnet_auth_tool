@@ -4,7 +4,7 @@ Attach/retrieve Battle.net authenticator secrets (online) and manage TOTP
 backups in an encrypted local vault (offline). See :mod:`bnet_auth_tool.cli`.
 """
 
-__version__ = "2.0.0"
+__version__ = "2.0.0a0"
 __author__ = "Nighthawk42"
 __license__ = "MIT"
 

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "bnet-auth-tool"
-version = "2.0.0"
+version = "2.0.0a0"
 description = "Manage Battle.net software authenticators (CLI + optional GUI): attach/retrieve secrets and back up TOTP keys in an encrypted local vault."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -37,6 +37,10 @@ gui = [
 dev = [
     "pytest>=8.0",
     "ruff>=0.5",
+]
+build = [
+    "flet[all]>=0.28",
+    "pyinstaller>=6.0",
 ]
 
 [project.urls]
