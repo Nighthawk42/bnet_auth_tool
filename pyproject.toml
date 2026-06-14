@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "bnet-auth-tool"
 version = "2.0.0"
-description = "Manage Battle.net software authenticators: attach/retrieve secrets and back up TOTP keys in an encrypted local vault."
+description = "Manage Battle.net software authenticators (CLI + optional GUI): attach/retrieve secrets and back up TOTP keys in an encrypted local vault."
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }

@@ -1,9 +1,14 @@
 # Battle.net Authenticator Tool
 
-A command-line tool for managing **Battle.net software authenticators**. It can
-attach/retrieve authenticator secrets online, and — most importantly — keep your
-TOTP backups in a single **encrypted local vault** so you can re-import them into
-any standard authenticator app (Aegis, Bitwarden, 1Password, Google Authenticator, …).
+> Back up Battle.net authenticator TOTP secrets in an encrypted local vault and export
+> them to any authenticator app — via CLI or an optional desktop GUI. Offline features
+> fully work; online attach/retrieve is unverified against Blizzard's API.
+
+A tool for managing **Battle.net software authenticators**, available as both a CLI
+(`bnet-auth`) and an optional desktop GUI (`bnet-auth-gui`). It can attach/retrieve
+authenticator secrets online, and — most importantly — keep your TOTP backups in a single
+**encrypted local vault** so you can re-import them into any standard authenticator app
+(Aegis, Bitwarden, 1Password, Google Authenticator, …).
 
 > [!IMPORTANT]
 > **Online status is unverified.** The attach/retrieve flows depend on
