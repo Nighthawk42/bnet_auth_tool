@@ -26,6 +26,7 @@ Source lives under `src/bnet_auth_tool/` (a proper package; there is no top-leve
 | `totp.py` | hex→base32, `otpauth://` URL builder, QR PNG. |
 | `migrate.py` | Discover + import legacy `battlenet_authenticator_*.json` files into the vault. |
 | `cli.py` | Interactive menu **and** argparse subcommands; `main()` is the entry point. |
+| `gui.py` | Optional Flet desktop GUI (`bnet-auth-gui`); imperative, same vault/crypto as the CLI. Behind the `gui` extra. |
 | `errors.py` | Exception hierarchy rooted at `BnetAuthError`. |
 
 `settings.yaml` is shipped inside the package and copied to the user's config dir on first
@@ -45,6 +46,9 @@ run. Endpoints/KDF/TOTP params are config, not code — change them there.
   annotations are fine).
 - Lint/format with **ruff**; config in `pyproject.toml`.
 - Keep crypto parameters fast in tests (small scrypt `n`) — see `tests/conftest.py`.
+- The GUI targets **Flet 0.85+** in imperative style: `ft.run(main)`, `page.show_dialog()` /
+  `page.pop_dialog()`, `page.clipboard.set()`, `page.window.width`. It holds no logic of its
+  own — all crypto/storage/TOTP goes through the same modules as the CLI.
 
 ## Workflow
 

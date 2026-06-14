@@ -31,6 +31,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+gui = [
+    "flet>=0.28",
+]
 dev = [
     "pytest>=8.0",
     "ruff>=0.5",
@@ -43,6 +46,7 @@ Issues = "https://github.com/Nighthawk42/bnet_auth_tool/issues"
 
 [project.scripts]
 bnet-auth = "bnet_auth_tool.cli:main"
+bnet-auth-gui = "bnet_auth_tool.gui:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/bnet_auth_tool"]

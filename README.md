@@ -23,6 +23,8 @@ any standard authenticator app (Aegis, Bitwarden, 1Password, Google Authenticato
   passphrase (scrypt key derivation), stored in your OS user-data directory.
 * **Migrate legacy backups** — import old `battlenet_authenticator_*.json` files (plaintext
   or encrypted with the older PBKDF2 scheme) into the vault.
+* **Optional GUI** — a small Flet desktop app (`bnet-auth-gui`) with live TOTP codes over
+  the same vault, for users who'd rather not use the terminal.
 
 ## Security model
 
@@ -58,7 +60,20 @@ pip install -r requirements.txt && pip install .
 
 Requires **Python 3.9+**.
 
-## Usage
+### GUI (optional)
+
+Prefer a window over a terminal? Install the optional Flet GUI:
+
+```bash
+uv tool install ".[gui]"     # or: pip install ".[gui]"
+bnet-auth-gui                # or: python -m bnet_auth_tool.gui
+```
+
+The GUI uses the **same** encrypted vault, settings, and crypto as the CLI — unlock the
+vault, see live rotating TOTP codes, copy a code, view a QR, import legacy backups, and
+(online, unverified) attach/retrieve. It's purely an alternative front-end.
+
+## Usage (CLI)
 
 Run with no arguments for the interactive menu:
 

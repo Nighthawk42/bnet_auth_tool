@@ -1,14 +1,20 @@
-"""TOTP helpers: secret conversion, otpauth URL building, and QR codes."""
+"""TOTP helpers: secret conversion, otpauth URL building, codes, and QR codes."""
 
 from __future__ import annotations
 
 import base64
 import binascii
+import hashlib
+import hmac
+import struct
+import time
 from pathlib import Path
 from urllib.parse import quote, urlencode
 
 from .config import TotpConfig
 from .fileio import _harden
+
+_HASHES = {"SHA1": hashlib.sha1, "SHA256": hashlib.sha256, "SHA512": hashlib.sha512}
 
 
 def hex_secret_to_base32(hex_secret: str) -> str:
@@ -34,6 +40,33 @@ def build_totp_url(serial: str, base32_secret: str, totp: TotpConfig) -> str:
         }
     )
     return f"otpauth://totp/{label}?{params}"
+
+
+def _b32_to_bytes(base32_secret: str) -> bytes:
+    """Decode a (possibly unpadded) Base32 TOTP secret to raw bytes."""
+    cleaned = base32_secret.strip().replace(" ", "").upper()
+    padding = "=" * (-len(cleaned) % 8)
+    try:
+        return base64.b32decode(cleaned + padding)
+    except binascii.Error as exc:
+        raise ValueError(f"Invalid Base32 secret: {exc}") from exc
+
+
+def current_code(base32_secret: str, totp: TotpConfig, *, at: float | None = None) -> str:
+    """Compute the current RFC 6238 TOTP code (zero-padded to ``totp.digits``)."""
+    key = _b32_to_bytes(base32_secret)
+    counter = int((time.time() if at is None else at) // totp.period)
+    digest_fn = _HASHES.get(totp.algorithm.upper(), hashlib.sha1)
+    mac = hmac.new(key, struct.pack(">Q", counter), digest_fn).digest()
+    offset = mac[-1] & 0x0F
+    binary = struct.unpack(">I", mac[offset : offset + 4])[0] & 0x7FFFFFFF
+    return str(binary % (10**totp.digits)).zfill(totp.digits)
+
+
+def seconds_remaining(totp: TotpConfig, *, at: float | None = None) -> int:
+    """Seconds until the current TOTP window rolls over."""
+    now = time.time() if at is None else at
+    return totp.period - int(now % totp.period)
 
 
 def generate_qr_code(totp_url: str, out_path: Path) -> Path:
