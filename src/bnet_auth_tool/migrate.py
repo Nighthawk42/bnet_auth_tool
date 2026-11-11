@@ -47,6 +47,8 @@ def normalise_entry(data: dict[str, Any], settings: Settings) -> dict[str, Any]:
 
     Derives ``base32Secret``/``totpUrl`` from ``deviceSecret`` when missing.
     """
+    if not isinstance(data, dict):
+        raise ValueError("record must be a JSON object")
     serial = data.get("serial")
     if not serial:
         raise ValueError("record has no 'serial'")

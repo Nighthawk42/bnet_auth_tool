@@ -76,6 +76,18 @@ def test_migrate_skips_without_passphrase(tmp_path, settings):
     assert len(vault) == 0
 
 
+def test_migrate_non_object_record_is_error_not_crash(tmp_path, settings):
+    f = tmp_path / "battlenet_authenticator_US-9999.json"
+    f.write_text(json.dumps([{"serial": "US-9999"}]))
+    vault = _vault(tmp_path, settings)
+
+    outcomes = migrate_files([f], vault, settings, lambda p: None)
+
+    assert outcomes[0].status == "error"
+    assert "JSON object" in outcomes[0].detail
+    assert len(vault) == 0
+
+
 def test_migrate_no_overwrite_existing(tmp_path, settings):
     f = tmp_path / "battlenet_authenticator_US-1111.json"
     f.write_text(json.dumps(PLAIN))
